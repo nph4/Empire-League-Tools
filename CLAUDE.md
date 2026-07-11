@@ -49,19 +49,40 @@ There is no linter/formatter configured yet.
     dependency, hence directly unit-testable (see `tests/test_auction_state.py`).
     `DraftState.max_bid` encodes the standard auction-budget rule of
     reserving $1 per remaining roster spot.
-  - `suggest.py` — the bid/target valuation logic. **Currently stubbed**
-    (`NotImplementedError`) — this is the intended extension point for
-    incorporating player rankings, positional scarcity, and manager
-    tendencies.
+  - `valuations.py` — builds the baseline `{player_name: value}` pool the
+    bid model runs on. Primary source is a user-supplied CSV
+    (`auction.values_csv` in `config.yaml`, any name/value scale — only
+    relative order/magnitude matters, e.g. a KeepTradeCut or FantasyPros
+    dynasty export). Any ESPN-known player missing from the CSV falls back
+    to a value derived from ESPN's `projected_total_points`, scaled so a
+    fallback player can never outrank someone explicitly ranked in the CSV
+    (a missing name is assumed replacement-level, not unranked-but-elite —
+    true for rookies too, since dynasty CSVs are expected to include them).
+  - `suggest.py` — turns the value pool into live dollar suggestions.
+    `suggest_bid` gives a player their share of *remaining* spendable
+    dollars (total remaining manager budgets minus $1 per remaining roster
+    spot) proportional to their share of the *remaining* pool's total
+    value. Recomputing this ratio against current state — rather than
+    tracking a separate inflation multiplier — makes inflation/deflation
+    fall out automatically: money spent *above* a player's fair share
+    deflates everyone left (fixed total budget, same value removed for
+    more money); money spent *under* fair share inflates the rest. This is
+    counterintuitive on first read — see the test names in
+    `tests/test_suggest.py` before "fixing" the direction.
+    `suggest_targets` ranks available players a manager can actually afford
+    (`<= DraftState.max_bid`) by that live suggested bid, descending.
   - `cli.py` — a `cmd.Cmd` REPL (`python -m empire_tools.auction`) built for
     rapid keyboard entry during a live draft: `sold "<player>" <amount>
-    "<manager>"`, `budgets`, `available [POSITION]`, `suggest "<player>"`,
-    `targets "<manager>"`. A REPL was chosen over a notebook or web UI
-    specifically because the tool needs to keep up with a live, time-pressured
-    auction.
+    "<manager>"`, `budgets`, `available [POSITION]` (now shows live
+    suggested bid per player), `suggest "<player>"`, `targets "<manager>"`.
+    A REPL was chosen over a notebook or web UI specifically because the
+    tool needs to keep up with a live, time-pressured auction.
 - `empire_tools/faab/` — weekly FAAB helper, currently just lists free
-  agents (`cli.py`); bid-sizing logic is not yet implemented.
+  agents (`cli.py`); bid-sizing logic is not yet implemented. It's a
+  natural candidate to reuse `valuations.py`/`suggest.py` once FAAB gets
+  built out, since the "value pool" concept isn't auction-specific.
 
-When extending the auction or FAAB suggestion logic, keep it separate from
-`state.py`/ESPN-fetching code so the valuation logic stays unit-testable
-without network access or a live league.
+Positional roster-need awareness (e.g. "this manager still needs a
+starting TE") is not modeled anywhere yet — `suggest_targets` only reasons
+about affordability, not roster construction. That's the main known gap if
+extending the targeting logic further.
