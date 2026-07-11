@@ -27,6 +27,7 @@ cp config.example.yaml config.yaml   # fill in league_id/year — this file is g
 python -m empire_tools.auction               # interactive auction draft REPL
 python -m empire_tools.faab list [--position RB]
 python -m empire_tools.faab bid "Player Name" [--team "My Team"]
+python -m empire_tools.faab needs [--team "My Team"]
 
 # Tests
 pytest                            # full suite
@@ -57,24 +58,33 @@ There is no linter/formatter configured yet.
   unranked-but-elite — true for rookies too, since dynasty CSVs are
   expected to include them). `build_value_pool_from_config` is the usual
   entry point; it's shared rather than duplicated per-tool.
+- `empire_tools/roster.py` — roster construction shared by both tools.
+  `RosterRequirements` models actual roster construction (starters by
+  position, a pooled flex bucket, bench) rather than a flat spot count;
+  `requirements_from_espn_slot_counts` translates ESPN's
+  `League.settings.position_slot_counts` into one, so roster rules are read
+  automatically instead of duplicated in config. It assumes a single flex
+  slot type (true for standard leagues, including this one) — multiple
+  distinct flex types get pooled into one bucket with the union of
+  eligible positions, an approximation for leagues using more than one.
+  `needed_positions(requirements, rostered_positions)` is a pure function
+  that greedily assigns each already-rostered position to the most
+  specific open slot (exact position, then flex) and returns what's still
+  open — used by FAAB directly against a team's live ESPN roster, and
+  mirrored by the auction's incremental `DraftState._fill_slot`/
+  `needed_positions` (see below) since a live draft needs to track slot
+  state *as it fills up*, not just compute it once from a finished roster.
 - `empire_tools/auction/` — the live draft assistant.
   - `state.py` — `DraftState`/`Manager`/`Player` dataclasses: pure
     bookkeeping (budgets, available pool, sale history, roster slots) with
     no ESPN or I/O dependency, hence directly unit-testable (see
     `tests/test_auction_state.py`, `tests/test_roster_requirements.py`).
     `DraftState.max_bid` encodes the standard auction-budget rule of
-    reserving $1 per remaining roster spot.
-    `RosterRequirements` models actual roster construction (starters by
-    position, a pooled flex bucket, bench) rather than a flat spot count;
-    `requirements_from_espn_slot_counts` translates ESPN's
-    `League.settings.position_slot_counts` into one, so per-manager roster
-    rules are read automatically instead of duplicated in config. It
-    assumes a single flex slot type (true for standard leagues, including
-    this one) — multiple distinct flex types get pooled into one bucket
-    with the union of eligible positions, which is an approximation for
-    leagues that use more than one. `DraftState.record_sale` fills a
-    drafted player into the most specific open slot via `_fill_slot`:
-    exact starter position first, then flex, then bench.
+    reserving $1 per remaining roster spot. `DraftState.record_sale` fills
+    a drafted player into the most specific open slot via `_fill_slot`:
+    exact starter position first, then flex, then bench (same ordering as
+    `roster.needed_positions`, just tracked incrementally on `Manager`
+    instead of recomputed from scratch each time).
     `DraftState.needed_positions` returns which positions would still fill
     a *starting* (non-bench) slot for a manager right now.
   - `suggest.py` — turns the value pool into live dollar suggestions.
@@ -110,14 +120,16 @@ There is no linter/formatter configured yet.
     converts that into a dollar suggestion as `max_share * percentile**2`
     of remaining budget (`faab.max_bid_share` in config, default 0.35) —
     squared so budget concentrates on genuine difference-makers rather
-    than spreading evenly across the waiver wire.
+    than spreading evenly across the waiver wire — then applies
+    `faab.bench_only_discount` (default 0.4) if the player wouldn't fill
+    an open starting/flex slot on your roster (`fills_need=False`); value
+    alone doesn't justify full budget for a likely bench stash.
   - `cli.py` — argparse subcommands (not a REPL — there's no live
     competitive state to keep up with mid-bid, unlike the auction):
-    `python -m empire_tools.faab list [--position POS]` and
-    `python -m empire_tools.faab bid "<player>" [--team "<name>"]`. `--team`
-    defaults to `my_team_name` in `config.yaml`.
-
-Roster-need awareness (the auction's `needed_positions`/`needs` command) has
-no FAAB equivalent yet — bid sizing only looks at value-vs-position-peers,
-not whether the manager's own roster actually needs that position. That's
-the natural next extension if FAAB suggestions need to get smarter.
+    `python -m empire_tools.faab list [--position POS]`,
+    `python -m empire_tools.faab bid "<player>" [--team "<name>"]`, and
+    `python -m empire_tools.faab needs [--team "<name>"]`. `--team`
+    defaults to `my_team_name` in `config.yaml`. `team_needed_positions`
+    pulls the team's *actual current* ESPN roster (`Team.roster`, real
+    add/drop history — no local tracking needed, unlike the auction) and
+    runs it through `roster.needed_positions`.

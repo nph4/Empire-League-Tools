@@ -1,57 +1,6 @@
 from dataclasses import dataclass, field
 
-# espn_api slot labels that represent a flex spot (accept more than one
-# base position) vs a true single-position bench/IR spot. 'D/ST' contains a
-# slash too but is a single position (defense/special teams), not a flex.
-FLEX_LABELS = {"RB/WR", "WR/TE", "RB/WR/TE", "OP"}
-BENCH_LABELS = {"BE", "IR"}
-
-
-@dataclass
-class RosterRequirements:
-    """How many of each roster slot type a manager must fill.
-
-    `starters` is keyed by base position (e.g. "QB", "RB", "D/ST"). Flex
-    slots are pooled into a single `flex_spots` bucket with the union of
-    positions eligible across whatever flex slot types are configured -
-    an approximation, but standard leagues (this one included) only run one
-    flex type, so it's exact in the common case.
-    """
-
-    starters: dict[str, int]
-    flex_spots: int = 0
-    flex_eligible: frozenset[str] = frozenset()
-    bench_spots: int = 0
-
-    @property
-    def total_spots(self) -> int:
-        return sum(self.starters.values()) + self.flex_spots + self.bench_spots
-
-
-def requirements_from_espn_slot_counts(position_slot_counts: dict[str, int]) -> RosterRequirements:
-    """Translate espn_api's League.settings.position_slot_counts into a RosterRequirements."""
-    starters: dict[str, int] = {}
-    flex_spots = 0
-    flex_eligible: set[str] = set()
-    bench_spots = 0
-
-    for slot, count in position_slot_counts.items():
-        if count <= 0:
-            continue
-        if slot in FLEX_LABELS:
-            flex_spots += count
-            flex_eligible |= {"QB", "RB", "WR", "TE"} if slot == "OP" else set(slot.split("/"))
-        elif slot in BENCH_LABELS:
-            bench_spots += count
-        else:
-            starters[slot] = count
-
-    return RosterRequirements(
-        starters=starters,
-        flex_spots=flex_spots,
-        flex_eligible=frozenset(flex_eligible),
-        bench_spots=bench_spots,
-    )
+from empire_tools.roster import RosterRequirements
 
 
 @dataclass

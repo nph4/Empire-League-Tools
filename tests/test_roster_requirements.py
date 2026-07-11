@@ -1,10 +1,5 @@
-from empire_tools.auction.state import (
-    DraftState,
-    Manager,
-    Player,
-    RosterRequirements,
-    requirements_from_espn_slot_counts,
-)
+from empire_tools.auction.state import DraftState, Manager, Player
+from empire_tools.roster import RosterRequirements
 
 
 def make_state():
@@ -62,27 +57,3 @@ def test_fill_slot_prefers_exact_starter_over_flex_over_bench():
     state.record_sale("WR1", "Alice", 10)  # WR starter still open, doesn't touch bench
     assert manager.starters_remaining["WR"] == 1
     assert manager.bench_remaining == 2
-
-
-def test_requirements_from_espn_slot_counts_separates_flex_bench_and_dst():
-    parsed = requirements_from_espn_slot_counts(
-        {
-            "QB": 1,
-            "RB": 2,
-            "RB/WR": 0,
-            "WR": 2,
-            "WR/TE": 0,
-            "TE": 1,
-            "RB/WR/TE": 1,
-            "D/ST": 1,
-            "K": 1,
-            "BE": 7,
-            "IR": 1,
-        }
-    )
-
-    assert parsed.starters == {"QB": 1, "RB": 2, "WR": 2, "TE": 1, "D/ST": 1, "K": 1}
-    assert parsed.flex_spots == 1
-    assert parsed.flex_eligible == {"RB", "WR", "TE"}
-    assert parsed.bench_spots == 8  # BE + IR pooled together
-    assert parsed.total_spots == 1 + 2 + 2 + 1 + 1 + 1 + 1 + 8

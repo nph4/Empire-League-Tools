@@ -65,8 +65,19 @@ def test_percentile_ranking_is_scoped_to_own_position():
     ],
 )
 def test_suggest_bid_scales_with_percentile_squared(percentile, expected):
-    assert suggest_bid(remaining_budget=200, percentile=percentile, max_share=0.35) == expected
+    bid = suggest_bid(remaining_budget=200, percentile=percentile, fills_need=True, max_share=0.35)
+    assert bid == expected
 
 
 def test_suggest_bid_respects_custom_max_share():
-    assert suggest_bid(remaining_budget=100, percentile=1.0, max_share=0.5) == 50
+    bid = suggest_bid(remaining_budget=100, percentile=1.0, fills_need=True, max_share=0.5)
+    assert bid == 50
+
+
+def test_suggest_bid_discounts_bench_only_adds():
+    needed = suggest_bid(remaining_budget=200, percentile=1.0, fills_need=True, max_share=0.35)
+    bench_only = suggest_bid(
+        remaining_budget=200, percentile=1.0, fills_need=False, max_share=0.35, bench_only_discount=0.4
+    )
+    assert bench_only == round(needed * 0.4)
+    assert bench_only < needed

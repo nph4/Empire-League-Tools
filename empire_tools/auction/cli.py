@@ -2,14 +2,10 @@ import cmd
 import shlex
 
 from empire_tools import espn_client
-from empire_tools.auction.state import (
-    DraftState,
-    Manager,
-    Player,
-    requirements_from_espn_slot_counts,
-)
+from empire_tools.auction.state import DraftState, Manager, Player
 from empire_tools.auction.suggest import suggest_bid, suggest_targets
 from empire_tools.config import load_config
+from empire_tools.roster import requirements_from_espn_slot_counts
 from empire_tools.valuations import build_value_pool_from_config
 
 

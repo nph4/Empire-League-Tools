@@ -31,10 +31,13 @@ cp config.example.yaml config.yaml  # then fill in your league_id/year
   CSV of your own dynasty rankings/values (any scale); players missing from
   it fall back to a value derived from ESPN's projections.
 - **FAAB assistant** (`python -m empire_tools.faab list [--position POS]` /
-  `python -m empire_tools.faab bid "Player Name" [--team "My Team"]`) —
-  lists current free agents, or suggests a dollar bid for one sized against
-  your actual remaining FAAB budget (read live from ESPN) and how the
-  player ranks among free agents at their position. `--team` defaults to
-  `my_team_name` in `config.yaml`.
+  `python -m empire_tools.faab bid "Player Name" [--team "My Team"]` /
+  `python -m empire_tools.faab needs [--team "My Team"]`) — lists current
+  free agents, or suggests a dollar bid for one sized against your actual
+  remaining FAAB budget (read live from ESPN), how the player ranks among
+  free agents at their position, and whether they'd fill an open
+  starting/flex slot on your actual current roster (also read live from
+  ESPN) — bench-only adds get a discounted suggestion. `--team` defaults
+  to `my_team_name` in `config.yaml`.
 
 More tools will be added as the league progresses.

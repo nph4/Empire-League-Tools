@@ -30,3 +30,8 @@ faab:
   # position can be suggested up to 35% of what you have left; bid size
   # falls off quickly for lesser adds.
   max_bid_share: 0.35
+  # Multiplier applied when a free agent would only fill your bench (i.e.
+  # your starting/flex slots at their position are already full), rather
+  # than an open starter or flex slot. Roster requirements are read
+  # automatically from your ESPN league's settings, same as the auction.
+  bench_only_discount: 0.4

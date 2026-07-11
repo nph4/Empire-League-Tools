@@ -40,7 +40,21 @@ def percentile_within_position(
     return 1 - (rank / (len(same_position_values) - 1))
 
 
-def suggest_bid(remaining_budget: int, percentile: float, max_share: float = 0.35) -> int:
-    """Suggested FAAB bid as a share of `remaining_budget`."""
+def suggest_bid(
+    remaining_budget: int,
+    percentile: float,
+    fills_need: bool,
+    max_share: float = 0.35,
+    bench_only_discount: float = 0.4,
+) -> int:
+    """Suggested FAAB bid as a share of `remaining_budget`.
+
+    `fills_need` is whether the player would fill an open starting/flex
+    slot on your actual current roster (see `empire_tools.roster.needed_positions`).
+    Bench-only adds - value notwithstanding - get discounted, since a
+    likely-to-sit stash is worth less of your budget than a real starter.
+    """
     share = max_share * (percentile**2)
+    if not fills_need:
+        share *= bench_only_discount
     return round(remaining_budget * share)

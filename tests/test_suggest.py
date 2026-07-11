@@ -1,7 +1,8 @@
 import pytest
 
-from empire_tools.auction.state import DraftState, Manager, Player, RosterRequirements
+from empire_tools.auction.state import DraftState, Manager, Player
 from empire_tools.auction.suggest import suggest_bid, suggest_targets
+from empire_tools.roster import RosterRequirements
 
 
 def make_state():
