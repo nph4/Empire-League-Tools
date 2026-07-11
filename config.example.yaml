@@ -1,0 +1,10 @@
+# Copy this file to config.yaml and fill in your league's details.
+# The league must be set to "open" (public) so no ESPN auth cookies are needed.
+
+league_id: 123456
+year: 2026
+
+# Auction draft settings
+auction:
+  budget_per_manager: 200
+  roster_spots_per_manager: 16
