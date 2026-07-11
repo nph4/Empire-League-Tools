@@ -7,7 +7,9 @@ year: 2026
 # Auction draft settings
 auction:
   budget_per_manager: 200
-  roster_spots_per_manager: 16
+  # Roster construction (starters/flex/bench counts, and total roster size)
+  # is read automatically from your ESPN league's settings, not configured
+  # here.
   # Optional: path to a CSV of "name,value" rows with your own dynasty
   # player values/rankings (any scale — only relative order/magnitude
   # matters). Players ESPN knows about but that are missing from this file

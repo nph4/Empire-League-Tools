@@ -1,18 +1,19 @@
 import pytest
 
-from empire_tools.auction.state import DraftState, Manager, Player
+from empire_tools.auction.state import DraftState, Manager, Player, RosterRequirements
 
 
 def make_state():
+    requirements = RosterRequirements(starters={}, flex_spots=0, bench_spots=16)
     managers = {
-        "Alice": Manager(name="Alice", budget=200),
-        "Bob": Manager(name="Bob", budget=200),
+        "Alice": Manager.new("Alice", 200, requirements),
+        "Bob": Manager.new("Bob", 200, requirements),
     }
     available = {
         "Justin Jefferson": Player(name="Justin Jefferson", position="WR", pro_team="MIN"),
         "Christian McCaffrey": Player(name="Christian McCaffrey", position="RB", pro_team="SF"),
     }
-    return DraftState(managers=managers, available=available, roster_spots_per_manager=16)
+    return DraftState(managers=managers, available=available, requirements=requirements)
 
 
 def test_record_sale_updates_manager_and_pool():

@@ -1,13 +1,16 @@
 import pytest
 
-from empire_tools.auction.state import DraftState, Manager, Player
+from empire_tools.auction.state import DraftState, Manager, Player, RosterRequirements
 from empire_tools.auction.suggest import suggest_bid, suggest_targets
 
 
 def make_state():
+    # Small on purpose (2 total spots/manager) so the reserved-dollar math
+    # is easy to check by hand: 1 WR starter + 1 bench spot.
+    requirements = RosterRequirements(starters={"WR": 1}, flex_spots=0, bench_spots=1)
     managers = {
-        "Alice": Manager(name="Alice", budget=200),
-        "Bob": Manager(name="Bob", budget=200),
+        "Alice": Manager.new("Alice", 200, requirements),
+        "Bob": Manager.new("Bob", 200, requirements),
     }
     available = {
         "Justin Jefferson": Player(name="Justin Jefferson", position="WR", pro_team="MIN"),
@@ -19,8 +22,7 @@ def make_state():
         "Christian McCaffrey": 90.0,
         "Waiver Fodder": 20.0,
     }
-    roster_spots = 2  # small on purpose so the reserved-dollar math is easy to check by hand
-    return DraftState(managers=managers, available=available, roster_spots_per_manager=roster_spots), value_pool
+    return DraftState(managers=managers, available=available, requirements=requirements), value_pool
 
 
 def test_suggest_bid_splits_remaining_spendable_by_relative_value():
@@ -73,12 +75,20 @@ def test_suggest_targets_only_returns_affordable_players():
 
     targets = suggest_targets(state, value_pool, "Alice")
 
-    assert [name for name, _ in targets] == ["Waiver Fodder"]
-    assert all(bid <= state.max_bid("Alice") for _, bid in targets)
+    assert [name for name, _, _ in targets] == ["Waiver Fodder"]
+    assert all(bid <= state.max_bid("Alice") for _, bid, _ in targets)
 
 
-def test_suggest_targets_sorted_best_value_first():
+def test_suggest_targets_ranks_needed_positions_before_bench_only():
     state, value_pool = make_state()
+    # Bob's only starter requirement is WR; Christian McCaffrey (RB) would
+    # only ever fill his bench, while both WRs fill his open starter slot.
     targets = suggest_targets(state, value_pool, "Bob")
-    bids = [bid for _, bid in targets]
-    assert bids == sorted(bids, reverse=True)
+
+    fills_need = [t[2] for t in targets]
+    assert fills_need == sorted(fills_need, reverse=True)  # NEEDED entries come first
+
+    needed_bids = [bid for _, bid, need in targets if need]
+    bench_bids = [bid for _, bid, need in targets if not need]
+    assert needed_bids == sorted(needed_bids, reverse=True)
+    assert bench_bids == sorted(bench_bids, reverse=True)

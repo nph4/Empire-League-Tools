@@ -37,18 +37,33 @@ There is no linter/formatter configured yet.
 ## Architecture
 
 - `empire_tools/config.py` — loads `config.yaml` (league_id, year, auction
-  budget/roster settings). `config.yaml` is gitignored since it's
-  league-specific; `config.example.yaml` is the template.
+  budget). `config.yaml` is gitignored since it's league-specific;
+  `config.example.yaml` is the template. Roster construction (starters,
+  flex, bench) is *not* configured here — it's read from ESPN, see below.
 - `empire_tools/espn_client.py` — the single point of contact with ESPN,
   wrapping `espn_api.football.League`. All other modules should go through
   this rather than importing `espn_api` directly, since it's what
   centralizes the "no auth needed" assumption.
 - `empire_tools/auction/` — the live draft assistant.
   - `state.py` — `DraftState`/`Manager`/`Player` dataclasses: pure
-    bookkeeping (budgets, available pool, sale history) with no ESPN or I/O
-    dependency, hence directly unit-testable (see `tests/test_auction_state.py`).
+    bookkeeping (budgets, available pool, sale history, roster slots) with
+    no ESPN or I/O dependency, hence directly unit-testable (see
+    `tests/test_auction_state.py`, `tests/test_roster_requirements.py`).
     `DraftState.max_bid` encodes the standard auction-budget rule of
     reserving $1 per remaining roster spot.
+    `RosterRequirements` models actual roster construction (starters by
+    position, a pooled flex bucket, bench) rather than a flat spot count;
+    `requirements_from_espn_slot_counts` translates ESPN's
+    `League.settings.position_slot_counts` into one, so per-manager roster
+    rules are read automatically instead of duplicated in config. It
+    assumes a single flex slot type (true for standard leagues, including
+    this one) — multiple distinct flex types get pooled into one bucket
+    with the union of eligible positions, which is an approximation for
+    leagues that use more than one. `DraftState.record_sale` fills a
+    drafted player into the most specific open slot via `_fill_slot`:
+    exact starter position first, then flex, then bench.
+    `DraftState.needed_positions` returns which positions would still fill
+    a *starting* (non-bench) slot for a manager right now.
   - `valuations.py` — builds the baseline `{player_name: value}` pool the
     bid model runs on. Primary source is a user-supplied CSV
     (`auction.values_csv` in `config.yaml`, any name/value scale — only
@@ -70,19 +85,17 @@ There is no linter/formatter configured yet.
     counterintuitive on first read — see the test names in
     `tests/test_suggest.py` before "fixing" the direction.
     `suggest_targets` ranks available players a manager can actually afford
-    (`<= DraftState.max_bid`) by that live suggested bid, descending.
+    (`<= DraftState.max_bid`), with players that fill an open starting/flex
+    slot (`DraftState.needed_positions`) ranked ahead of bench-only value —
+    the dollar value itself is need-agnostic; need only affects ordering.
   - `cli.py` — a `cmd.Cmd` REPL (`python -m empire_tools.auction`) built for
     rapid keyboard entry during a live draft: `sold "<player>" <amount>
-    "<manager>"`, `budgets`, `available [POSITION]` (now shows live
-    suggested bid per player), `suggest "<player>"`, `targets "<manager>"`.
+    "<manager>"`, `budgets`, `available [POSITION]` (shows live suggested
+    bid per player), `suggest "<player>"`, `targets "<manager>"` (tags each
+    as NEEDED or bench), `needs "<manager>"` (remaining roster requirements).
     A REPL was chosen over a notebook or web UI specifically because the
     tool needs to keep up with a live, time-pressured auction.
 - `empire_tools/faab/` — weekly FAAB helper, currently just lists free
   agents (`cli.py`); bid-sizing logic is not yet implemented. It's a
-  natural candidate to reuse `valuations.py`/`suggest.py` once FAAB gets
-  built out, since the "value pool" concept isn't auction-specific.
-
-Positional roster-need awareness (e.g. "this manager still needs a
-starting TE") is not modeled anywhere yet — `suggest_targets` only reasons
-about affordability, not roster construction. That's the main known gap if
-extending the targeting logic further.
+  natural candidate to reuse `valuations.py`/`suggest.py`/roster-need logic
+  once FAAB gets built out, since none of that is auction-specific.

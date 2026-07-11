@@ -42,16 +42,21 @@ def suggest_bid(state: DraftState, value_pool: dict[str, float], player_name: st
 
 def suggest_targets(
     state: DraftState, value_pool: dict[str, float], manager_name: str, count: int = 5
-) -> list[tuple[str, int]]:
-    """Return up to `count` available (player, suggested_bid) pairs that
-    `manager_name` can currently afford, best value first."""
+) -> list[tuple[str, int, bool]]:
+    """Return up to `count` available (player, suggested_bid, fills_need)
+    triples that `manager_name` can currently afford. Players who'd fill an
+    open starting/flex slot are ranked ahead of bench-only value, since a
+    manager should generally finish their starting lineup before stashing
+    bench upside; within each of those two groups, best value goes first."""
     max_bid = state.max_bid(manager_name)
+    needed_positions = state.needed_positions(manager_name)
 
     affordable = []
-    for player_name in state.available:
+    for player_name, player in state.available.items():
         bid = suggest_bid(state, value_pool, player_name)
         if bid <= max_bid:
-            affordable.append((player_name, bid))
+            fills_need = player.position in needed_positions
+            affordable.append((player_name, bid, fills_need))
 
-    affordable.sort(key=lambda pair: pair[1], reverse=True)
+    affordable.sort(key=lambda t: (not t[2], -t[1]))
     return affordable[:count]
