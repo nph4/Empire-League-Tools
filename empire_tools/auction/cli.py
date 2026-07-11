@@ -9,8 +9,8 @@ from empire_tools.auction.state import (
     requirements_from_espn_slot_counts,
 )
 from empire_tools.auction.suggest import suggest_bid, suggest_targets
-from empire_tools.auction.valuations import build_value_pool, load_csv_values
 from empire_tools.config import load_config
+from empire_tools.valuations import build_value_pool_from_config
 
 
 def build_initial_state(
@@ -27,12 +27,6 @@ def build_initial_state(
         for player in free_agents
     }
     return DraftState(managers=managers, available=available, requirements=requirements)
-
-
-def build_value_pool_from_config(config: dict, free_agents: list) -> dict[str, float]:
-    csv_path = config["auction"].get("values_csv")
-    csv_values = load_csv_values(csv_path) if csv_path else {}
-    return build_value_pool(csv_values, free_agents)
 
 
 class AuctionShell(cmd.Cmd):

@@ -4,15 +4,29 @@
 league_id: 123456
 year: 2026
 
+# Your exact ESPN team name. Used as the default team for tools that need
+# to know "my" roster/budget (e.g. FAAB bid suggestions).
+my_team_name: "Example Team Name"
+
+# Optional: path to a CSV of "name,value" rows with your own dynasty
+# player values/rankings (any scale — only relative order/magnitude
+# matters). Players ESPN knows about but that are missing from this file
+# fall back to a value derived from their ESPN projected points. Shared by
+# the auction and FAAB tools. Omit this key to rely on the ESPN fallback
+# for every player.
+values_csv: player_values.csv
+
 # Auction draft settings
 auction:
   budget_per_manager: 200
   # Roster construction (starters/flex/bench counts, and total roster size)
   # is read automatically from your ESPN league's settings, not configured
   # here.
-  # Optional: path to a CSV of "name,value" rows with your own dynasty
-  # player values/rankings (any scale — only relative order/magnitude
-  # matters). Players ESPN knows about but that are missing from this file
-  # fall back to a value derived from their ESPN projected points. Omit
-  # this key to rely on the ESPN fallback for every player.
-  values_csv: player_values.csv
+
+# FAAB waiver settings
+faab:
+  # Cap on a single suggested bid, as a fraction of your remaining FAAB
+  # budget. E.g. 0.35 means the single best available free agent at a
+  # position can be suggested up to 35% of what you have left; bid size
+  # falls off quickly for lesser adds.
+  max_bid_share: 0.35

@@ -48,3 +48,11 @@ def build_value_pool(
         pool[player.name] = share * ceiling if ceiling is not None else share
 
     return pool
+
+
+def build_value_pool_from_config(config: dict, free_agents: list[ProjectsPoints]) -> dict[str, float]:
+    """Convenience wrapper: load config's optional `values_csv` (shared by
+    the auction and FAAB tools) and merge it with an ESPN fallback."""
+    csv_path = config.get("values_csv")
+    csv_values = load_csv_values(csv_path) if csv_path else {}
+    return build_value_pool(csv_values, free_agents)

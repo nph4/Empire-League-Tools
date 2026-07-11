@@ -27,11 +27,14 @@ cp config.example.yaml config.yaml  # then fill in your league_id/year
   per manager — affordable and ranked by whether they'd fill an open
   starting/flex slot or only the bench — based on your own player values,
   adjusted in real time as the draft's actual spending inflates or deflates
-  the market. Optionally set `auction.values_csv` in `config.yaml` to a
-  `name,value` CSV of your own dynasty rankings/values (any scale); players
-  missing from it fall back to a value derived from ESPN's projections.
-- **FAAB assistant** (`python -m empire_tools.faab`) — lists current free
-  agents to help size a weekly FAAB bid. Bid-sizing logic isn't
-  implemented yet.
+  the market. Optionally set `values_csv` in `config.yaml` to a `name,value`
+  CSV of your own dynasty rankings/values (any scale); players missing from
+  it fall back to a value derived from ESPN's projections.
+- **FAAB assistant** (`python -m empire_tools.faab list [--position POS]` /
+  `python -m empire_tools.faab bid "Player Name" [--team "My Team"]`) —
+  lists current free agents, or suggests a dollar bid for one sized against
+  your actual remaining FAAB budget (read live from ESPN) and how the
+  player ranks among free agents at their position. `--team` defaults to
+  `my_team_name` in `config.yaml`.
 
 More tools will be added as the league progresses.

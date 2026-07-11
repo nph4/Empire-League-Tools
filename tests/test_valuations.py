@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from empire_tools.auction.valuations import build_value_pool
+from empire_tools.valuations import build_value_pool, build_value_pool_from_config
 
 
 @dataclass
@@ -32,4 +32,21 @@ def test_fallback_players_never_exceed_the_csv_floor():
 
 def test_no_csv_uses_raw_projection_share():
     pool = build_value_pool({}, [FakeProjectedPlayer("Only Option", 200)])
+    assert pool["Only Option"] == 1.0
+
+
+def test_build_value_pool_from_config_reads_values_csv_key(tmp_path):
+    csv_path = tmp_path / "values.csv"
+    csv_path.write_text("name,value\nJustin Jefferson,65\n")
+
+    pool = build_value_pool_from_config(
+        {"values_csv": str(csv_path)}, [FakeProjectedPlayer("Waiver Fodder", 50)]
+    )
+
+    assert pool["Justin Jefferson"] == 65.0
+    assert pool["Waiver Fodder"] <= 65.0
+
+
+def test_build_value_pool_from_config_without_csv_key_uses_fallback_only():
+    pool = build_value_pool_from_config({}, [FakeProjectedPlayer("Only Option", 200)])
     assert pool["Only Option"] == 1.0

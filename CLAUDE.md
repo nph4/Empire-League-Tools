@@ -10,9 +10,9 @@ championships). The league is configured as "open" (public) on ESPN, so all
 tools read league data anonymously via the unofficial `espn_api` package —
 no `espn_s2`/`SWID` auth cookies are needed or should be added.
 
-The first tool is a live auction-draft assistant; a FAAB (waiver budget)
-assistant follows. More tools will be added over time as the league's needs
-come up (see `empire_tools/` for the current set).
+There's a live auction-draft assistant and a FAAB (waiver budget) bid
+assistant. More tools will be added over time as the league's needs come
+up (see `empire_tools/` for the current set).
 
 ## Commands
 
@@ -24,8 +24,9 @@ pip install -r requirements.txt
 cp config.example.yaml config.yaml   # fill in league_id/year — this file is gitignored
 
 # Run the tools
-python -m empire_tools.auction   # interactive auction draft REPL
-python -m empire_tools.faab      # FAAB free-agent listing
+python -m empire_tools.auction               # interactive auction draft REPL
+python -m empire_tools.faab list [--position RB]
+python -m empire_tools.faab bid "Player Name" [--team "My Team"]
 
 # Tests
 pytest                            # full suite
@@ -36,14 +37,26 @@ There is no linter/formatter configured yet.
 
 ## Architecture
 
-- `empire_tools/config.py` — loads `config.yaml` (league_id, year, auction
-  budget). `config.yaml` is gitignored since it's league-specific;
+- `empire_tools/config.py` — loads `config.yaml` (league_id, year,
+  `my_team_name`, auction budget, FAAB settings, shared `values_csv` path).
+  `config.yaml` is gitignored since it's league-specific;
   `config.example.yaml` is the template. Roster construction (starters,
   flex, bench) is *not* configured here — it's read from ESPN, see below.
 - `empire_tools/espn_client.py` — the single point of contact with ESPN,
   wrapping `espn_api.football.League`. All other modules should go through
   this rather than importing `espn_api` directly, since it's what
   centralizes the "no auth needed" assumption.
+- `empire_tools/valuations.py` — builds the baseline `{player_name: value}`
+  pool that both the auction and FAAB bid models run on. Primary source is
+  a user-supplied CSV (`values_csv` in `config.yaml`, any name/value
+  scale — only relative order/magnitude matters, e.g. a KeepTradeCut or
+  FantasyPros dynasty export). Any ESPN-known player missing from the CSV
+  falls back to a value derived from ESPN's `projected_total_points`,
+  scaled so a fallback player can never outrank someone explicitly ranked
+  in the CSV (a missing name is assumed replacement-level, not
+  unranked-but-elite — true for rookies too, since dynasty CSVs are
+  expected to include them). `build_value_pool_from_config` is the usual
+  entry point; it's shared rather than duplicated per-tool.
 - `empire_tools/auction/` — the live draft assistant.
   - `state.py` — `DraftState`/`Manager`/`Player` dataclasses: pure
     bookkeeping (budgets, available pool, sale history, roster slots) with
@@ -64,15 +77,6 @@ There is no linter/formatter configured yet.
     exact starter position first, then flex, then bench.
     `DraftState.needed_positions` returns which positions would still fill
     a *starting* (non-bench) slot for a manager right now.
-  - `valuations.py` — builds the baseline `{player_name: value}` pool the
-    bid model runs on. Primary source is a user-supplied CSV
-    (`auction.values_csv` in `config.yaml`, any name/value scale — only
-    relative order/magnitude matters, e.g. a KeepTradeCut or FantasyPros
-    dynasty export). Any ESPN-known player missing from the CSV falls back
-    to a value derived from ESPN's `projected_total_points`, scaled so a
-    fallback player can never outrank someone explicitly ranked in the CSV
-    (a missing name is assumed replacement-level, not unranked-but-elite —
-    true for rookies too, since dynasty CSVs are expected to include them).
   - `suggest.py` — turns the value pool into live dollar suggestions.
     `suggest_bid` gives a player their share of *remaining* spendable
     dollars (total remaining manager budgets minus $1 per remaining roster
@@ -95,7 +99,25 @@ There is no linter/formatter configured yet.
     as NEEDED or bench), `needs "<manager>"` (remaining roster requirements).
     A REPL was chosen over a notebook or web UI specifically because the
     tool needs to keep up with a live, time-pressured auction.
-- `empire_tools/faab/` — weekly FAAB helper, currently just lists free
-  agents (`cli.py`); bid-sizing logic is not yet implemented. It's a
-  natural candidate to reuse `valuations.py`/`suggest.py`/roster-need logic
-  once FAAB gets built out, since none of that is auction-specific.
+- `empire_tools/faab/` — weekly FAAB waiver bid assistant. Unlike the
+  auction draft, ESPN already tracks real budget state
+  (`League.settings.acquisition_budget`, `Team.acquisition_budget_spent`),
+  so there's no local bookkeeping equivalent to `DraftState` here.
+  - `suggest.py` — `percentile_within_position` ranks a free agent's
+    baseline value (from `valuations.py`) against other free agents
+    currently available *at the same position* (0 = worst, 1 = best; a
+    lone player at their position is treated as best). `suggest_bid`
+    converts that into a dollar suggestion as `max_share * percentile**2`
+    of remaining budget (`faab.max_bid_share` in config, default 0.35) —
+    squared so budget concentrates on genuine difference-makers rather
+    than spreading evenly across the waiver wire.
+  - `cli.py` — argparse subcommands (not a REPL — there's no live
+    competitive state to keep up with mid-bid, unlike the auction):
+    `python -m empire_tools.faab list [--position POS]` and
+    `python -m empire_tools.faab bid "<player>" [--team "<name>"]`. `--team`
+    defaults to `my_team_name` in `config.yaml`.
+
+Roster-need awareness (the auction's `needed_positions`/`needs` command) has
+no FAAB equivalent yet — bid sizing only looks at value-vs-position-peers,
+not whether the manager's own roster actually needs that position. That's
+the natural next extension if FAAB suggestions need to get smarter.
