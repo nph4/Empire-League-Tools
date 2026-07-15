@@ -24,9 +24,11 @@ def generate(config: dict, players: list, position: str | None = None, fmt: str 
 
     value_pool = build_value_pool_from_config(config, players)
     notes = load_notes_from_config(config)
-    gap_threshold = config.get("cheatsheet", {}).get("tier_gap_threshold", 0.15)
+    cheatsheet_config = config.get("cheatsheet", {})
+    gap_threshold = cheatsheet_config.get("tier_gap_threshold", 0.15)
+    team_bias_flags = cheatsheet_config.get("fan_bias_teams", {})
 
-    rows = build_rows(players, value_pool, notes, gap_threshold)
+    rows = build_rows(players, value_pool, notes, gap_threshold, team_bias_flags)
     return render_csv(rows) if fmt == "csv" else render_markdown(rows)
 
 

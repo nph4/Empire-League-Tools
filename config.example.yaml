@@ -38,14 +38,22 @@ faab:
 
 # Draft cheat sheet settings
 cheatsheet:
-  # Optional: path to a CSV of "name,tier_override,flags,notes" rows — your
-  # own hand-maintained tier overrides, situational flags (e.g.
+  # Optional: path to a CSV of "name,tier_override,flags,notes,window_fit"
+  # rows — your own hand-maintained tier overrides, situational flags (e.g.
   # camp-riser, depth-chart-battle — semicolon-separated if more than
-  # one), and free-text notes. Meant to be updated as often as you like
-  # between now and draft day; omit this key (or point it at a file that
-  # doesn't exist yet) to get an auto-tiered sheet with no manual
-  # annotations.
+  # one), free-text notes, and window_fit (a multiplier, default 1.0,
+  # for hand-adjusting a player's rank toward or away from this league's
+  # actual win-timing target — e.g. seasons 4&5 or 5&6 of this iteration —
+  # rather than a generic dynasty contention window). Meant to be updated
+  # as often as you like between now and draft day; omit this key (or
+  # point it at a file that doesn't exist yet) to get an auto-tiered sheet
+  # with no manual annotations.
   notes_csv: cheatsheet_notes.csv
   # How big a relative value drop (as a fraction of the higher value)
   # triggers a new tier within a position. Lower = more, narrower tiers.
   tier_gap_threshold: 0.15
+  # Optional: pro_team -> short flag text for teams with a known in-league
+  # homer bias (managers who'll pay above model value at auction/FAAB).
+  fan_bias_teams:
+    MIN: "MN-bias"
+    WSH: "WAS-bias-minor"

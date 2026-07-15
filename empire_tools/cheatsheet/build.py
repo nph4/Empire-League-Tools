@@ -34,17 +34,37 @@ def build_rows(
     value_pool: dict[str, float],
     notes: dict[str, PlayerNotes],
     gap_threshold: float,
+    team_bias_flags: dict[str, str] | None = None,
 ) -> list[CheatSheetRow]:
     players = list(players)
-    auto_tiers = assign_tiers_by_position(value_pool, players, gap_threshold)
+    team_bias_flags = team_bias_flags or {}
+
+    # window_fit_multiplier lets a hand-entered win-timing call actually
+    # move a player's rank (not just be a footnote) - fold it in before
+    # tiering, since there's no ESPN-sourced signal to compute this
+    # automatically (see notes.py's PlayerNotes.window_fit_multiplier).
+    effective_values = {
+        player.name: value_pool.get(player.name, 0) * notes.get(player.name, PlayerNotes()).window_fit_multiplier
+        for player in players
+    }
+    auto_tiers = assign_tiers_by_position(effective_values, players, gap_threshold)
+    max_te_tier = max((auto_tiers[p.name] for p in players if p.position == "TE"), default=1)
 
     rows = []
     for player in players:
         player_notes = notes.get(player.name, PlayerNotes())
+        tier = player_notes.tier_override or auto_tiers.get(player.name, 1)
 
         flags = []
         if getattr(player, "injuryStatus", None) not in _HEALTHY_STATUSES:
             flags.append(player.injuryStatus)
+        if player.proTeam in team_bias_flags:
+            flags.append(team_bias_flags[player.proTeam])
+        # First TE or last TE, skip the middle - see feedback-te-draft-philosophy memory.
+        if player.position == "TE" and 1 < tier < max_te_tier:
+            flags.append("mid-tier-TE")
+        if player_notes.window_fit_multiplier != 1.0:
+            flags.append(f"window×{player_notes.window_fit_multiplier:g}")
         for flag in player_notes.flags:
             if flag not in flags:
                 flags.append(flag)
@@ -54,8 +74,8 @@ def build_rows(
                 name=player.name,
                 position=player.position,
                 pro_team=player.proTeam,
-                value=value_pool.get(player.name, 0),
-                tier=player_notes.tier_override or auto_tiers.get(player.name, 1),
+                value=effective_values[player.name],
+                tier=tier,
                 flags=flags,
                 notes=player_notes.notes,
             )

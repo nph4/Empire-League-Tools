@@ -18,10 +18,16 @@ class PlayerNotes:
     tier_override: int | None = None
     flags: list[str] = field(default_factory=list)
     notes: str = ""
+    # Multiplier applied to a player's value before tiering/ranking - a
+    # hand-entered adjustment for how well they fit the league's actual
+    # win-timing target (this iteration's title window), since there's no
+    # ESPN-sourced age/experience signal to compute it automatically. 1.0
+    # (the default) means no adjustment.
+    window_fit_multiplier: float = 1.0
 
 
 def load_notes(path: Path) -> dict[str, PlayerNotes]:
-    """Load a CSV of `name,tier_override,flags,notes` rows into a
+    """Load a CSV of `name,tier_override,flags,notes,window_fit` rows into a
     {name: PlayerNotes} dict. `flags` is a semicolon-separated list of
     freeform tags. Returns an empty dict if the file doesn't exist yet."""
     path = Path(path)
@@ -33,10 +39,12 @@ def load_notes(path: Path) -> dict[str, PlayerNotes]:
         for row in csv.DictReader(f):
             tier_override_raw = (row.get("tier_override") or "").strip()
             flags_raw = (row.get("flags") or "").strip()
+            window_fit_raw = (row.get("window_fit") or "").strip()
             result[row["name"]] = PlayerNotes(
                 tier_override=int(tier_override_raw) if tier_override_raw else None,
                 flags=[flag.strip() for flag in flags_raw.split(";") if flag.strip()],
                 notes=(row.get("notes") or "").strip(),
+                window_fit_multiplier=float(window_fit_raw) if window_fit_raw else 1.0,
             )
     return result
 

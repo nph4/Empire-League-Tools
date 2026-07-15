@@ -150,19 +150,35 @@ There is no linter/formatter configured yet.
     independently per position, since a tier-1 QB and a tier-1 RB aren't
     held to the same bar.
   - `notes.py` — `load_notes`/`load_notes_from_config` read the optional
-    `cheatsheet.notes_csv` (`name,tier_override,flags,notes` rows) into
-    `{name: PlayerNotes}`, same optional-CSV pattern as `values_csv` in
-    `valuations.py` — a missing file just means no manual annotations yet.
-    This file is the part of the cheat sheet meant to be hand-edited as
-    camp/preseason news comes in; regenerating the sheet only reads it,
-    never overwrites it.
+    `cheatsheet.notes_csv` (`name,tier_override,flags,notes,window_fit`
+    rows) into `{name: PlayerNotes}`, same optional-CSV pattern as
+    `values_csv` in `valuations.py` — a missing file just means no manual
+    annotations yet. This file is the part of the cheat sheet meant to be
+    hand-edited as camp/preseason news comes in; regenerating the sheet
+    only reads it, never overwrites it. `window_fit_multiplier` (default
+    1.0) is a hand-entered adjustment for how well a player fits this
+    league's actual win-timing target — the payout structure means the
+    real prize is winning two *consecutive* seasons (4&5 or 5&6 of this
+    iteration), not generic "peak dynasty value ASAP" — since there's no
+    ESPN-sourced age/experience signal to compute that automatically.
   - `build.py` — `build_rows` merges the value pool (`valuations.py`), auto
     tiers (`tiers.py`), and the manual overlay (`notes.py`) into
-    `CheatSheetRow`s: a `tier_override` from the notes CSV wins over the
-    auto-computed tier, and `flags` merges an auto flag pulled straight
-    from ESPN's `Player.injuryStatus` (when not healthy/`ACTIVE`) with any
-    manual flags. Rows sort by `(position, tier, -value)` — read-this-
-    section-best-tier-first order for a printed sheet.
+    `CheatSheetRow`s. `window_fit_multiplier` is applied to a player's
+    value *before* tiering/ranking, since a deliberate win-timing call
+    should actually move the rank, not just be a footnote; when it isn't
+    1.0 a `window×{multiplier}` flag makes the adjustment visible next to
+    the number it changed. Everything else is annotate-don't-rewrite: a
+    `tier_override` from the notes CSV wins over the auto-computed tier,
+    `flags` merges an auto flag pulled straight from ESPN's
+    `Player.injuryStatus` (when not healthy/`ACTIVE`), an optional
+    `team_bias_flags` config map (pro_team -> flag text, e.g. this
+    league's Vikings/Commanders fan-heavy homer bias — see
+    `config.example.yaml`) keyed by ESPN's `proTeam`, a hardcoded
+    `mid-tier-TE` flag (personal draft philosophy: first TE or last TE,
+    skip the middle — flagged whenever a TE's tier is strictly between the
+    best and worst TE tier), and any manual flags from the notes CSV. Rows
+    sort by `(position, tier, -value)` — read-this-section-best-tier-first
+    order for a printed sheet.
   - `render.py` — pure formatting, no I/O: `render_markdown` (one table per
     position, for printing) and `render_csv` (flat rows, for
     Sheets/Excel filtering).
