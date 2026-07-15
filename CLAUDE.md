@@ -10,9 +10,10 @@ championships). The league is configured as "open" (public) on ESPN, so all
 tools read league data anonymously via the unofficial `espn_api` package —
 no `espn_s2`/`SWID` auth cookies are needed or should be added.
 
-There's a live auction-draft assistant and a FAAB (waiver budget) bid
-assistant. More tools will be added over time as the league's needs come
-up (see `empire_tools/` for the current set).
+There's a live auction-draft assistant, a FAAB (waiver budget) bid
+assistant, and a pre-draft cheat sheet generator. More tools will be added
+over time as the league's needs come up (see `empire_tools/` for the
+current set).
 
 ## Commands
 
@@ -40,8 +41,8 @@ There is no linter/formatter configured yet.
 ## Architecture
 
 - `empire_tools/config.py` — loads `config.yaml` (league_id, year,
-  `my_team_name`, auction budget, FAAB settings, shared `values_csv` path).
-  `config.yaml` is gitignored since it's league-specific;
+  `my_team_name`, auction budget, FAAB settings, cheat sheet settings,
+  shared `values_csv` path). `config.yaml` is gitignored since it's league-specific;
   `config.example.yaml` is the template. Roster construction (starters,
   flex, bench) is *not* configured here — it's read from ESPN, see below.
 - `empire_tools/espn_client.py` — the single point of contact with ESPN,

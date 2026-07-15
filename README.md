@@ -39,5 +39,16 @@ cp config.example.yaml config.yaml  # then fill in your league_id/year
   starting/flex slot on your actual current roster (also read live from
   ESPN) — bench-only adds get a discounted suggestion. `--team` defaults
   to `my_team_name` in `config.yaml`.
+- **Draft cheat sheet** (`python -m empire_tools.cheatsheet generate
+  [--position POS] [--format markdown|csv] [--output PATH]`) — generates a
+  printable pre-draft sheet of every draftable player, grouped by position
+  and tiered by value, meant to be regenerated as often as you like between
+  now and draft day as camp/preseason news comes in. Supports an optional
+  hand-maintained overlay CSV (`cheatsheet.notes_csv` in `config.yaml`) for
+  tier overrides, situational flags, free-text notes, and a `window_fit`
+  multiplier for hand-adjusting a player's rank toward your league's actual
+  win-timing target rather than generic dynasty value. Also auto-flags
+  known in-league fan-bias teams (`cheatsheet.fan_bias_teams`) and mid-tier
+  TEs (if you'd rather pay for the top tier or punt to the waiver wire).
 
 More tools will be added as the league progresses.
