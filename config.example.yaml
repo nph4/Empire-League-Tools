@@ -35,3 +35,17 @@ faab:
   # than an open starter or flex slot. Roster requirements are read
   # automatically from your ESPN league's settings, same as the auction.
   bench_only_discount: 0.4
+
+# Draft cheat sheet settings
+cheatsheet:
+  # Optional: path to a CSV of "name,tier_override,flags,notes" rows — your
+  # own hand-maintained tier overrides, situational flags (e.g.
+  # camp-riser, depth-chart-battle — semicolon-separated if more than
+  # one), and free-text notes. Meant to be updated as often as you like
+  # between now and draft day; omit this key (or point it at a file that
+  # doesn't exist yet) to get an auto-tiered sheet with no manual
+  # annotations.
+  notes_csv: cheatsheet_notes.csv
+  # How big a relative value drop (as a fraction of the higher value)
+  # triggers a new tier within a position. Lower = more, narrower tiers.
+  tier_gap_threshold: 0.15

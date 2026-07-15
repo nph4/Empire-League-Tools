@@ -28,6 +28,7 @@ python -m empire_tools.auction               # interactive auction draft REPL
 python -m empire_tools.faab list [--position RB]
 python -m empire_tools.faab bid "Player Name" [--team "My Team"]
 python -m empire_tools.faab needs [--team "My Team"]
+python -m empire_tools.cheatsheet generate [--position RB] [--format markdown|csv] [--output PATH]
 
 # Tests
 pytest                            # full suite
@@ -133,3 +134,38 @@ There is no linter/formatter configured yet.
     pulls the team's *actual current* ESPN roster (`Team.roster`, real
     add/drop history — no local tracking needed, unlike the auction) and
     runs it through `roster.needed_positions`.
+- `empire_tools/cheatsheet/` — generates a printable pre-draft cheat sheet
+  for the startup auction: every draftable player (same `league.free_agents(size=2000)`
+  "everyone's a free agent" trick `auction/cli.py` uses pre-draft), grouped
+  by position and tiered by value, with room for a hand-maintained overlay
+  of tier overrides, situational flags, and notes that's meant to be
+  updated repeatedly between now and draft day as camp/preseason news comes
+  in. Not a live/REPL tool — like FAAB, there's no draft-day state to keep
+  up with here, just a document to regenerate.
+  - `tiers.py` — `assign_tiers`/`assign_tiers_by_position` are pure functions
+    with no ESPN/CSV dependency: given a position's values sorted
+    descending, a new tier starts wherever the drop to the next value
+    exceeds `gap_threshold` as a fraction of the higher value (config
+    `cheatsheet.tier_gap_threshold`, default 0.15) — tiers are computed
+    independently per position, since a tier-1 QB and a tier-1 RB aren't
+    held to the same bar.
+  - `notes.py` — `load_notes`/`load_notes_from_config` read the optional
+    `cheatsheet.notes_csv` (`name,tier_override,flags,notes` rows) into
+    `{name: PlayerNotes}`, same optional-CSV pattern as `values_csv` in
+    `valuations.py` — a missing file just means no manual annotations yet.
+    This file is the part of the cheat sheet meant to be hand-edited as
+    camp/preseason news comes in; regenerating the sheet only reads it,
+    never overwrites it.
+  - `build.py` — `build_rows` merges the value pool (`valuations.py`), auto
+    tiers (`tiers.py`), and the manual overlay (`notes.py`) into
+    `CheatSheetRow`s: a `tier_override` from the notes CSV wins over the
+    auto-computed tier, and `flags` merges an auto flag pulled straight
+    from ESPN's `Player.injuryStatus` (when not healthy/`ACTIVE`) with any
+    manual flags. Rows sort by `(position, tier, -value)` — read-this-
+    section-best-tier-first order for a printed sheet.
+  - `render.py` — pure formatting, no I/O: `render_markdown` (one table per
+    position, for printing) and `render_csv` (flat rows, for
+    Sheets/Excel filtering).
+  - `cli.py` — argparse, single `generate` subcommand (no REPL, same
+    reasoning as FAAB): `python -m empire_tools.cheatsheet generate
+    [--position POS] [--format markdown|csv] [--output PATH]`.
