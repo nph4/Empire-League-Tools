@@ -24,6 +24,12 @@ def test_injured_player_gets_an_auto_flag_from_espn():
     assert row.flags == ["QUESTIONABLE"]
 
 
+def test_non_string_injury_status_from_espn_is_treated_as_healthy():
+    # espn_api reports [] instead of a string/None for some inactive players
+    row = build_rows([FakePlayer("Retired Guy", "WR", "KC", injuryStatus=[])], {"Retired Guy": 50.0}, {}, gap_threshold=0.15)[0]
+    assert row.flags == []
+
+
 def test_manual_flags_merge_with_auto_flag_without_duplicates():
     notes = {"Hurt Guy": PlayerNotes(flags=["camp-riser", "QUESTIONABLE"])}
     row = build_rows(

@@ -56,8 +56,14 @@ def build_rows(
         tier = player_notes.tier_override or auto_tiers.get(player.name, 1)
 
         flags = []
-        if getattr(player, "injuryStatus", None) not in _HEALTHY_STATUSES:
-            flags.append(player.injuryStatus)
+        injury_status = getattr(player, "injuryStatus", None)
+        # espn_api returns [] rather than None for some inactive/off-roster
+        # players (e.g. retired vets still in ESPN's player pool) - treat
+        # anything that isn't an actual status string as no-data/healthy.
+        if not isinstance(injury_status, str):
+            injury_status = None
+        if injury_status not in _HEALTHY_STATUSES:
+            flags.append(injury_status)
         if player.proTeam in team_bias_flags:
             flags.append(team_bias_flags[player.proTeam])
         # First TE or last TE, skip the middle - see feedback-te-draft-philosophy memory.
