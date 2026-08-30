@@ -52,8 +52,16 @@ There is no linter/formatter configured yet.
 - `empire_tools/valuations.py` — builds the baseline `{player_name: value}`
   pool that both the auction and FAAB bid models run on. Primary source is
   a user-supplied CSV (`values_csv` in `config.yaml`, any name/value
-  scale — only relative order/magnitude matters, e.g. a KeepTradeCut or
-  FantasyPros dynasty export). Any ESPN-known player missing from the CSV
+  scale — only relative order/magnitude matters, e.g. a KeepTradeCut
+  export). `load_csv_values` auto-detects the CSV shape from its header: a
+  plain `name,value` file is used as-is; a raw FantasyPros *rankings*
+  export (`RK,TIERS,PLAYER NAME,...`, which has ranks but no values — this
+  is the export the FantasyPros website gives you, since the free API tier
+  caps responses at 10 rows) has its overall rank (`AVG.` average expert
+  rank when present, else `RK`) mapped to a value via exponential decay, so
+  it drops in without hand-editing. `values_csv_rank_half_life` in config
+  (default 30) tunes how steeply that curve concentrates value at the top.
+  Any ESPN-known player missing from the CSV
   falls back to a value derived from ESPN's `projected_total_points`,
   scaled so a fallback player can never outrank someone explicitly ranked
   in the CSV (a missing name is assumed replacement-level, not

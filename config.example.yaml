@@ -8,13 +8,23 @@ year: 2026
 # to know "my" roster/budget (e.g. FAAB bid suggestions).
 my_team_name: "Example Team Name"
 
-# Optional: path to a CSV of "name,value" rows with your own dynasty
-# player values/rankings (any scale — only relative order/magnitude
-# matters). Players ESPN knows about but that are missing from this file
-# fall back to a value derived from their ESPN projected points. Shared by
-# the auction and FAAB tools. Omit this key to rely on the ESPN fallback
-# for every player.
+# Optional: path to your own dynasty player values/rankings. Two file
+# shapes are accepted, auto-detected from the header:
+#   * "name,value" rows (any scale — only relative order/magnitude
+#     matters), e.g. a KeepTradeCut value export.
+#   * A raw FantasyPros rankings export ("RK,TIERS,PLAYER NAME,...") — has
+#     ranks but no values, so the rank is mapped to a value curve for you
+#     (no hand-editing into name,value needed).
+# Players ESPN knows about but that are missing from this file fall back to
+# a value derived from their ESPN projected points. Shared by the auction
+# and FAAB tools. Omit this key to rely on the ESPN fallback for every
+# player.
 values_csv: player_values.csv
+
+# Optional: only used when values_csv is a FantasyPros rankings export.
+# How many ranks it takes the derived value to halve — lower concentrates
+# more value (and auction dollars) on the very top players. Default 30.
+values_csv_rank_half_life: 30
 
 # Auction draft settings
 auction:
