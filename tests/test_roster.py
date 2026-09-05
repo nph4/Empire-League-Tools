@@ -21,8 +21,10 @@ def test_requirements_from_espn_slot_counts_separates_flex_bench_and_dst():
     assert parsed.starters == {"QB": 1, "RB": 2, "WR": 2, "TE": 1, "D/ST": 1, "K": 1}
     assert parsed.flex_spots == 1
     assert parsed.flex_eligible == {"RB", "WR", "TE"}
-    assert parsed.bench_spots == 8  # BE + IR pooled together
-    assert parsed.total_spots == 1 + 2 + 2 + 1 + 1 + 1 + 1 + 8
+    assert parsed.bench_spots == 7  # BE only
+    assert parsed.ir_spots == 1  # IR tracked separately, not drafted into
+    # IR excluded: total is starters + flex + bench, not IR
+    assert parsed.total_spots == 1 + 2 + 2 + 1 + 1 + 1 + 1 + 7
 
 
 def make_requirements():

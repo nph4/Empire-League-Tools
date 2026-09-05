@@ -77,6 +77,10 @@ There is no linter/formatter configured yet.
   slot type (true for standard leagues, including this one) — multiple
   distinct flex types get pooled into one bucket with the union of
   eligible positions, an approximation for leagues using more than one.
+  IR slots are parsed into a separate `ir_spots` field and deliberately
+  excluded from `total_spots`: they're roster capacity but you don't draft
+  or bid into them, so counting them would inflate the auction's
+  $1-per-remaining-spot max-bid reserve and the bench progress readouts.
   `needed_positions(requirements, rostered_positions)` is a pure function
   that greedily assigns each already-rostered position to the most
   specific open slot (exact position, then flex) and returns what's still

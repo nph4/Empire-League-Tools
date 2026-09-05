@@ -6,10 +6,15 @@ from a manager's currently rostered positions.
 from dataclasses import dataclass
 
 # espn_api slot labels that represent a flex spot (accept more than one
-# base position) vs a true single-position bench/IR spot. 'D/ST' contains a
+# base position) vs a true single-position bench spot. 'D/ST' contains a
 # slash too but is a single position (defense/special teams), not a flex.
 FLEX_LABELS = {"RB/WR", "WR/TE", "RB/WR/TE", "OP"}
-BENCH_LABELS = {"BE", "IR"}
+BENCH_LABELS = {"BE"}
+# IR slots are roster capacity but not something you draft or bid into: they
+# only hold players already rostered elsewhere who've been ruled out. Kept
+# separate so they don't inflate `total_spots` (and with it the auction's
+# $1-per-remaining-spot max-bid reserve) or bench progress readouts.
+IR_LABELS = {"IR"}
 
 
 @dataclass
@@ -27,6 +32,9 @@ class RosterRequirements:
     flex_spots: int = 0
     flex_eligible: frozenset[str] = frozenset()
     bench_spots: int = 0
+    # Informational only - IR slots aren't drafted into, so they're excluded
+    # from `total_spots` and every draft/bid calculation built on it.
+    ir_spots: int = 0
 
     @property
     def total_spots(self) -> int:
@@ -39,6 +47,7 @@ def requirements_from_espn_slot_counts(position_slot_counts: dict[str, int]) -> 
     flex_spots = 0
     flex_eligible: set[str] = set()
     bench_spots = 0
+    ir_spots = 0
 
     for slot, count in position_slot_counts.items():
         if count <= 0:
@@ -48,6 +57,8 @@ def requirements_from_espn_slot_counts(position_slot_counts: dict[str, int]) -> 
             flex_eligible |= {"QB", "RB", "WR", "TE"} if slot == "OP" else set(slot.split("/"))
         elif slot in BENCH_LABELS:
             bench_spots += count
+        elif slot in IR_LABELS:
+            ir_spots += count
         else:
             starters[slot] = count
 
@@ -56,6 +67,7 @@ def requirements_from_espn_slot_counts(position_slot_counts: dict[str, int]) -> 
         flex_spots=flex_spots,
         flex_eligible=frozenset(flex_eligible),
         bench_spots=bench_spots,
+        ir_spots=ir_spots,
     )
 
 
