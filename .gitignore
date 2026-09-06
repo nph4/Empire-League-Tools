@@ -220,3 +220,7 @@ __marimo__/
 # Empire League Tools local config
 config.yaml
 .venv/
+
+# Editor backup / undo files (Vim)
+*~
+.*.un~
