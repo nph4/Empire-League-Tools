@@ -1,271 +1,95 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Claude Code's working notes for this repo. **[`README.md`](README.md) is the
+source of truth** for what this is, the architecture, the conventions, the
+config keys, and how to add a tool — read that first. This file is for the
+things that aren't in the code or the README: hard-won gotchas that would
+otherwise have to be rediscovered, and a dated log of non-obvious changes.
 
-## What this is
+## Gotchas
 
-A collection of tools for running an ESPN Fantasy Football **Empire League**
-— a Dynasty league with a defined end condition (winning back-to-back
-championships). The league is configured as "open" (public) on ESPN, so all
-tools read league data anonymously via the unofficial `espn_api` package —
-no `espn_s2`/`SWID` auth cookies are needed or should be added.
+- **ESPN team names carry stray whitespace.** One manager's name is
+  literally `"Burms Burners "` — trailing space in `Team.team_name`.
+  `roster.find_team` strips both sides, but `auction`'s `sold` / `suggest`
+  / `targets` match the manager name exactly. If a lookup fails on a name
+  that's clearly right on screen, suspect whitespace before a typo —
+  `budgets` output, or `repr()` on `espn_client.get_league().teams`,
+  reveals it.
 
-There's a live auction-draft assistant, a FAAB (waiver budget) bid
-assistant, and a pre-draft cheat sheet generator. More tools will be added
-over time as the league's needs come up (see `empire_tools/` for the
-current set).
+- **Auction inflation/deflation direction is counterintuitive.**
+  `auction/suggest.py` recomputes each player's share of *remaining*
+  spendable dollars against their share of the *remaining* pool value, per
+  call — no separate inflation multiplier. So money spent *above* a
+  player's fair share deflates everyone left (fixed total budget, same
+  value removed for more money); money spent *under* fair share inflates
+  the rest. The test names in `tests/test_suggest.py` spell this out — read
+  them before "fixing" the direction.
 
-## Commands
+- **`DraftState.max_bid` needs no cross-check against ESPN.** ESPN's own
+  bid box enforces the identical $1-per-remaining-roster-spot rule
+  client-side.
 
-```bash
-# Setup
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp config.example.yaml config.yaml   # fill in league_id/year — this file is gitignored
+- **Auction nomination minimum raise is $1.** Joining a bid on a player
+  someone just nominated at $1 costs $2, not $1.
 
-# Run the tools
-python -m empire_tools.auction               # interactive auction draft REPL
-python -m empire_tools.faab list [--position RB]
-python -m empire_tools.faab bid "Player Name" [--team "My Team"]
-python -m empire_tools.faab needs [--team "My Team"]
-python -m empire_tools.cheatsheet generate [--position RB] [--format markdown|csv] [--output PATH]
-python -m empire_tools.trade eval --give "Player A" "Player B" --get "Player C" [--team "My Team"] [--with "Other Team"]
+- **IR slots are excluded from `RosterRequirements.total_spots`** (and
+  everything built on it). They're roster capacity but you don't draft or
+  bid into them — counting them would inflate the auction's max-bid
+  reserve and the bench progress readouts.
 
-# Tests
-pytest                            # full suite
-pytest tests/test_auction_state.py::test_max_bid_reserves_a_dollar_per_remaining_roster_spot  # single test
-```
+- **The auction REPL can be co-piloted over a named pipe.** To drive it
+  from another process (e.g. an agent watching the ESPN draft room in a
+  browser while a human bids): `mkfifo` a fifo, keep a `sleep infinity`
+  writer open on it so the reader never sees EOF between commands, launch
+  `python -m empire_tools.auction < fifo > log 2>&1 &`, then append
+  commands to the fifo and tail the log from anywhere.
 
-There is no linter/formatter configured yet.
+- **FantasyPros' API is free-tier only** — the key caps responses at 10
+  rows, so it's useless for a full ranking. Use the website's CSV export
+  instead; `valuations.load_csv_values` auto-detects that shape and maps
+  its ranks to a value curve. (Also saved as a memory.)
 
-## Architecture
+- **The FantasyPros dynasty export has an unused `AGE` column** (and a
+  position rank inside `POS`, e.g. `WR11`). `valuations._rankings_to_values`
+  reads only the name and overall rank and drops the rest. That `AGE`
+  column is the lever if a value model ever needs an age signal — ESPN
+  exposes none.
 
-- `empire_tools/config.py` — loads `config.yaml` (league_id, year,
-  `my_team_name`, auction budget, FAAB settings, cheat sheet settings,
-  shared `values_csv` path). `config.yaml` is gitignored since it's league-specific;
-  `config.example.yaml` is the template. Roster construction (starters,
-  flex, bench) is *not* configured here — it's read from ESPN, see below.
-- `empire_tools/espn_client.py` — the single point of contact with ESPN,
-  wrapping `espn_api.football.League`. All other modules should go through
-  this rather than importing `espn_api` directly, since it's what
-  centralizes the "no auth needed" assumption.
-- `empire_tools/valuations.py` — builds the baseline `{player_name: value}`
-  pool that both the auction and FAAB bid models run on. Primary source is
-  a user-supplied CSV (`values_csv` in `config.yaml`, any name/value
-  scale — only relative order/magnitude matters, e.g. a KeepTradeCut
-  export). `load_csv_values` auto-detects the CSV shape from its header: a
-  plain `name,value` file is used as-is; a raw FantasyPros *rankings*
-  export (`RK,TIERS,PLAYER NAME,...`, which has ranks but no values — this
-  is the export the FantasyPros website gives you, since the free API tier
-  caps responses at 10 rows) has its overall rank (`AVG.` average expert
-  rank when present, else `RK`) mapped to a value via exponential decay, so
-  it drops in without hand-editing. `values_csv_rank_half_life` in config
-  (default 30) tunes how steeply that curve concentrates value at the top.
-  Any ESPN-known player missing from the CSV
-  falls back to a value derived from ESPN's `projected_total_points`,
-  scaled so a fallback player can never outrank someone explicitly ranked
-  in the CSV (a missing name is assumed replacement-level, not
-  unranked-but-elite — true for rookies too, since dynasty CSVs are
-  expected to include them). `build_value_pool_from_config` is the usual
-  entry point; it's shared rather than duplicated per-tool.
-- `empire_tools/roster.py` — roster construction shared by the auction,
-  FAAB, and trade tools. `RosterRequirements` models actual roster construction (starters by
-  position, a pooled flex bucket, bench) rather than a flat spot count;
-  `requirements_from_espn_slot_counts` translates ESPN's
-  `League.settings.position_slot_counts` into one, so roster rules are read
-  automatically instead of duplicated in config. It assumes a single flex
-  slot type (true for standard leagues, including this one) — multiple
-  distinct flex types get pooled into one bucket with the union of
-  eligible positions, an approximation for leagues using more than one.
-  IR slots are parsed into a separate `ir_spots` field and deliberately
-  excluded from `total_spots`: they're roster capacity but you don't draft
-  or bid into them, so counting them would inflate the auction's
-  $1-per-remaining-spot max-bid reserve and the bench progress readouts.
-  `needed_positions(requirements, rostered_positions)` is a pure function
-  that greedily assigns each already-rostered position to the most
-  specific open slot (exact position, then flex) and returns what's still
-  open — used by FAAB directly against a team's live ESPN roster, and
-  mirrored by the auction's incremental `DraftState._fill_slot`/
-  `needed_positions` (see below) since a live draft needs to track slot
-  state *as it fills up*, not just compute it once from a finished roster.
-  `find_team(league, name)` also lives here (moved from `faab/cli.py`) —
-  an exact team-name lookup that tolerates the stray leading/trailing
-  whitespace ESPN sometimes carries in `Team.team_name`; shared by FAAB
-  and trade, both of which take a team name off the CLI.
-- `empire_tools/auction/` — the live draft assistant.
-  - `state.py` — `DraftState`/`Manager`/`Player` dataclasses: pure
-    bookkeeping (budgets, available pool, sale history, roster slots) with
-    no ESPN or I/O dependency, hence directly unit-testable (see
-    `tests/test_auction_state.py`, `tests/test_roster_requirements.py`).
-    `DraftState.max_bid` encodes the standard auction-budget rule of
-    reserving $1 per remaining roster spot. `DraftState.record_sale` fills
-    a drafted player into the most specific open slot via `_fill_slot`:
-    exact starter position first, then flex, then bench (same ordering as
-    `roster.needed_positions`, just tracked incrementally on `Manager`
-    instead of recomputed from scratch each time).
-    `DraftState.needed_positions` returns which positions would still fill
-    a *starting* (non-bench) slot for a manager right now.
-  - `suggest.py` — turns the value pool into live dollar suggestions.
-    `suggest_bid` gives a player their share of *remaining* spendable
-    dollars (total remaining manager budgets minus $1 per remaining roster
-    spot) proportional to their share of the *remaining* pool's total
-    value. Recomputing this ratio against current state — rather than
-    tracking a separate inflation multiplier — makes inflation/deflation
-    fall out automatically: money spent *above* a player's fair share
-    deflates everyone left (fixed total budget, same value removed for
-    more money); money spent *under* fair share inflates the rest. This is
-    counterintuitive on first read — see the test names in
-    `tests/test_suggest.py` before "fixing" the direction.
-    `suggest_targets` ranks available players a manager can actually afford
-    (`<= DraftState.max_bid`), with players that fill an open starting/flex
-    slot (`DraftState.needed_positions`) ranked ahead of bench-only value —
-    the dollar value itself is need-agnostic; need only affects ordering.
-  - `cli.py` — a `cmd.Cmd` REPL (`python -m empire_tools.auction`) built for
-    rapid keyboard entry during a live draft: `sold "<player>" <amount>
-    "<manager>"`, `budgets`, `available [POSITION]` (shows live suggested
-    bid per player), `suggest "<player>"`, `targets "<manager>"` (tags each
-    as NEEDED or bench), `needs "<manager>"` (remaining roster requirements).
-    A REPL was chosen over a notebook or web UI specifically because the
-    tool needs to keep up with a live, time-pressured auction.
-    Lessons from running this live for the 2026 draft: ESPN team names
-    can carry stray whitespace (e.g. one manager's name is actually
-    `"Burms Burners "` with a trailing space in `Team.team_name`) —
-    `sold`/`suggest`/`targets` match the manager name exactly, so if a
-    lookup fails on an on-screen name, check `budgets` output (or
-    `repr()` the name via `espn_client.get_league().teams`) for a
-    trailing/leading space before assuming the player name is wrong.
-    ESPN's own bid box enforces the identical $1-per-remaining-roster-
-    spot max bid client-side, confirming `DraftState.max_bid` doesn't
-    need a separate sanity check against it. The nomination minimum
-    raise is $1: joining a bid on a player someone else just nominated
-    at $1 costs $2, not $1. To co-pilot a live draft from a separate
-    process (e.g. an agent watching the ESPN draft room in a browser
-    while a human bids), the REPL can be driven non-interactively over
-    a named pipe: `mkfifo` a fifo, keep a `sleep infinity` writer open
-    on it so the reader never sees EOF between commands, launch
-    `python -m empire_tools.auction < fifo > log 2>&1 &`, then append
-    commands to the fifo and tail the log from any process.
-- `empire_tools/faab/` — weekly FAAB waiver bid assistant. Unlike the
-  auction draft, ESPN already tracks real budget state
-  (`League.settings.acquisition_budget`, `Team.acquisition_budget_spent`),
-  so there's no local bookkeeping equivalent to `DraftState` here.
-  - `suggest.py` — `percentile_within_position` ranks a free agent's
-    baseline value (from `valuations.py`) against other free agents
-    currently available *at the same position* (0 = worst, 1 = best; a
-    lone player at their position is treated as best). `suggest_bid`
-    converts that into a dollar suggestion as `max_share * percentile**2`
-    of remaining budget (`faab.max_bid_share` in config, default 0.35) —
-    squared so budget concentrates on genuine difference-makers rather
-    than spreading evenly across the waiver wire — then applies
-    `faab.bench_only_discount` (default 0.4) if the player wouldn't fill
-    an open starting/flex slot on your roster (`fills_need=False`); value
-    alone doesn't justify full budget for a likely bench stash.
-  - `cli.py` — argparse subcommands (not a REPL — there's no live
-    competitive state to keep up with mid-bid, unlike the auction):
-    `python -m empire_tools.faab list [--position POS]`,
-    `python -m empire_tools.faab bid "<player>" [--team "<name>"]`, and
-    `python -m empire_tools.faab needs [--team "<name>"]`. `--team`
-    defaults to `my_team_name` in `config.yaml`. `team_needed_positions`
-    pulls the team's *actual current* ESPN roster (`Team.roster`, real
-    add/drop history — no local tracking needed, unlike the auction) and
-    runs it through `roster.needed_positions`.
-- `empire_tools/cheatsheet/` — generates a printable pre-draft cheat sheet
-  for the startup auction: every draftable player (same `league.free_agents(size=2000)`
-  "everyone's a free agent" trick `auction/cli.py` uses pre-draft), grouped
-  by position and tiered by value, with room for a hand-maintained overlay
-  of tier overrides, situational flags, and notes that's meant to be
-  updated repeatedly between now and draft day as camp/preseason news comes
-  in. Not a live/REPL tool — like FAAB, there's no draft-day state to keep
-  up with here, just a document to regenerate.
-  - `tiers.py` — `assign_tiers`/`assign_tiers_by_position` are pure functions
-    with no ESPN/CSV dependency: given a position's values sorted
-    descending, a new tier starts wherever the drop to the next value
-    exceeds `gap_threshold` as a fraction of the higher value (config
-    `cheatsheet.tier_gap_threshold`, default 0.15) — tiers are computed
-    independently per position, since a tier-1 QB and a tier-1 RB aren't
-    held to the same bar.
-  - `notes.py` — `load_notes`/`load_notes_from_config` read the optional
-    `cheatsheet.notes_csv` (`name,tier_override,flags,notes,window_fit`
-    rows) into `{name: PlayerNotes}`, same optional-CSV pattern as
-    `values_csv` in `valuations.py` — a missing file just means no manual
-    annotations yet. This file is the part of the cheat sheet meant to be
-    hand-edited as camp/preseason news comes in; regenerating the sheet
-    only reads it, never overwrites it. `window_fit_multiplier` (default
-    1.0) is a hand-entered adjustment for how well a player fits this
-    league's actual win-timing target — the payout structure means the
-    real prize is winning two *consecutive* seasons (4&5 or 5&6 of this
-    iteration), not generic "peak dynasty value ASAP" — since there's no
-    ESPN-sourced age/experience signal to compute that automatically.
-  - `build.py` — `build_rows` merges the value pool (`valuations.py`), auto
-    tiers (`tiers.py`), and the manual overlay (`notes.py`) into
-    `CheatSheetRow`s. `window_fit_multiplier` is applied to a player's
-    value *before* tiering/ranking, since a deliberate win-timing call
-    should actually move the rank, not just be a footnote; when it isn't
-    1.0 a `window×{multiplier}` flag makes the adjustment visible next to
-    the number it changed. Everything else is annotate-don't-rewrite: a
-    `tier_override` from the notes CSV wins over the auto-computed tier,
-    `flags` merges an auto flag pulled straight from ESPN's
-    `Player.injuryStatus` (when not healthy/`ACTIVE`), an optional
-    `team_bias_flags` config map (pro_team -> flag text, e.g. this
-    league's Vikings/Commanders fan-heavy homer bias — see
-    `config.example.yaml`) keyed by ESPN's `proTeam`, a hardcoded
-    `mid-tier-TE` flag (personal draft philosophy: first TE or last TE,
-    skip the middle — flagged whenever a TE's tier is strictly between the
-    best and worst TE tier), and any manual flags from the notes CSV. Rows
-    sort by `(position, tier, -value)` — read-this-section-best-tier-first
-    order for a printed sheet.
-  - `render.py` — pure formatting, no I/O: `render_markdown` (one table per
-    position, for printing) and `render_csv` (flat rows, for
-    Sheets/Excel filtering).
-  - `cli.py` — argparse, single `generate` subcommand (no REPL, same
-    reasoning as FAAB): `python -m empire_tools.cheatsheet generate
-    [--position POS] [--format markdown|csv] [--output PATH]`.
-- `empire_tools/trade/` — proposed-trade evaluator. Like FAAB and the cheat
-  sheet (and unlike the auction), argparse not a REPL — a trade is scored
-  once, there's no live state to keep up with.
-  - `evaluate.py` — pure grading logic, no ESPN/I/O dependency, so it's
-    directly unit-testable (`tests/test_trade_evaluate.py`). Grades each
-    side of the trade twice: rest-of-season and long-term, on *different*
-    value models — ROS from ESPN `projected_total_points` (a dynasty
-    ranking is the wrong ruler for "who helps me win now"), long-term from
-    the shared `valuations.py` dynasty pool. Each grade is a
-    fixed-threshold letter (`GRADE_BANDS`, hardcoded like
-    `cheatsheet/tiers.py`) off a symmetric fairness score,
-    `(value_in - value_out) / max(value_in, value_out)` from that side's
-    point of view — so C is a fair deal and the two sides' raw letters
-    roughly invert (one side's `in` is the other's `out` over the same
-    denominator). A lopsided multi-player deal still behaves: the score
-    keys off aggregate value in vs out, not player count. Positional need
-    is a *soft* nudge on the ROS grade **only** — dynasty value is a
-    multi-year price and the roster shape will change, so nudging the
-    long-term grade would double-count a transient state. A received player
-    who fills an open starting/flex slot (or a given player who leaves you
-    thin at one) is scaled by `trade.need_boost` (default 1.10); a received
-    player who'd only sit on the bench by `trade.depth_discount` (default
-    0.90) — same idea as `faab.bench_only_discount`. The nudge is then
-    clamped by `trade.need_swing_cap` (default 0.10) so it can't move the
-    fairness score more than ~one grade band whatever the multipliers are,
-    and `raw_grade` (pre-need) is surfaced next to `grade`. When neither
-    side touches a need the two discounts cancel, so need is genuinely a
-    tie-breaker. Known v1 approximation: two received players at one needed
-    position both get the boost though only one slot is filled.
-    `side_callouts` emits the human-readable reasoning ("✓ fills your RB
-    need", "⚠ opens a hole at TE", over-the-roster-limit warnings, signed
-    net ROS points / net long-term value).
-  - `cli.py` — single `eval` subcommand: `--give`/`--get` take the players
-    from your point of view, `--team` defaults to `my_team_name`, `--with`
-    names the other team but is inferred from which team currently rosters
-    the `--get` players when omitted (with specific errors when they span
-    multiple teams, are free agents, or don't exist). Reuses
-    `roster.find_team` and `roster.needed_positions` — the latter run
-    against a *hypothetical* post-trade roster (positions removed/added as
-    a multiset, since `needed_positions` only consumes a position list) to
-    get each side's before/after need picture. Builds the long-term value
-    map by unioning `league.free_agents(size=2000)` with the traded
-    players' own `Player` objects, so a rostered-but-traded player still
-    resolves to a value. `render_report` is a plain-text formatter (no
-    markdown/csv export in v1); `--verbose` adds the raw/need-adjusted
-    value breakdown. `projected_total_points` is a full-season figure —
-    fine pre-season (ROS == full season), `# TODO` to prorate by games
-    remaining for mid-season use.
+- **Trade evaluator is deliberately minimal.** Rest-of-season grade =
+  ESPN `projected_total_points`; long-term grade = a plain value-in vs
+  value-out delta on the dynasty pool — no aging curve, no `window_fit`
+  overlay, no season counter. Positional need is a soft nudge on the
+  rest-of-season grade *only*, clamped by `trade.need_swing_cap`; when
+  neither side of the trade touches a need, the boost and discount cancel
+  out. `raw_grade` is printed next to `grade` so the nudge stays visible.
+  See the `trade-evaluator-design-decisions` memory for what was
+  considered and turned down.
+
+- **`cheatsheet` config key vs. code param name mismatch.** The config key
+  is `cheatsheet.fan_bias_teams`; the `build_rows` parameter it feeds is
+  `team_bias_flags`. Same thing, two names.
+
+## Change log
+
+Newest first. Dated, and only for changes that aren't obvious from `git
+log` alone.
+
+- **2026-09-07 — README / CLAUDE.md split.** Restructured the docs to match
+  the `Homelab-IaC` repo: `README.md` is now the source of truth
+  (architecture, conventions, configuration table, "adding a tool"), and
+  this file is working notes — the gotchas above plus this log. The old
+  CLAUDE.md's deep module-by-module design prose was distilled into
+  README's leaner Architecture section; the per-module "why" that didn't
+  survive the trim lives in the code and its tests.
+
+- **2026-09-07 — Trade evaluator added.** New `empire_tools/trade/` with an
+  `eval` subcommand; four letter grades (your rest-of-season and
+  long-term, plus the counterparty's). `find_team` moved out of
+  `faab/cli.py` into `roster.py` so both tools share it. New `trade:`
+  config section. See the "Trade evaluator is deliberately minimal" gotcha.
+
+- **2026-09-07 — Repo file cleanup.** Cheat-sheet artifacts moved into
+  `Cheetsheet/`, FantasyPros exports and `player_values.csv` into
+  `Ranking CSVs/`; `values_csv` / `notes_csv` paths in both config files
+  updated to match. LibreOffice lock files (`.~lock.*#`) added to
+  `.gitignore`.
