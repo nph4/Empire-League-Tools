@@ -30,6 +30,7 @@ python -m empire_tools.faab list [--position RB]
 python -m empire_tools.faab bid "Player Name" [--team "My Team"]
 python -m empire_tools.faab needs [--team "My Team"]
 python -m empire_tools.cheatsheet generate [--position RB] [--format markdown|csv] [--output PATH]
+python -m empire_tools.trade eval --give "Player A" "Player B" --get "Player C" [--team "My Team"] [--with "Other Team"]
 
 # Tests
 pytest                            # full suite
@@ -68,8 +69,8 @@ There is no linter/formatter configured yet.
   unranked-but-elite — true for rookies too, since dynasty CSVs are
   expected to include them). `build_value_pool_from_config` is the usual
   entry point; it's shared rather than duplicated per-tool.
-- `empire_tools/roster.py` — roster construction shared by both tools.
-  `RosterRequirements` models actual roster construction (starters by
+- `empire_tools/roster.py` — roster construction shared by the auction,
+  FAAB, and trade tools. `RosterRequirements` models actual roster construction (starters by
   position, a pooled flex bucket, bench) rather than a flat spot count;
   `requirements_from_espn_slot_counts` translates ESPN's
   `League.settings.position_slot_counts` into one, so roster rules are read
@@ -88,6 +89,10 @@ There is no linter/formatter configured yet.
   mirrored by the auction's incremental `DraftState._fill_slot`/
   `needed_positions` (see below) since a live draft needs to track slot
   state *as it fills up*, not just compute it once from a finished roster.
+  `find_team(league, name)` also lives here (moved from `faab/cli.py`) —
+  an exact team-name lookup that tolerates the stray leading/trailing
+  whitespace ESPN sometimes carries in `Team.team_name`; shared by FAAB
+  and trade, both of which take a team name off the CLI.
 - `empire_tools/auction/` — the live draft assistant.
   - `state.py` — `DraftState`/`Manager`/`Player` dataclasses: pure
     bookkeeping (budgets, available pool, sale history, roster slots) with
@@ -216,3 +221,51 @@ There is no linter/formatter configured yet.
   - `cli.py` — argparse, single `generate` subcommand (no REPL, same
     reasoning as FAAB): `python -m empire_tools.cheatsheet generate
     [--position POS] [--format markdown|csv] [--output PATH]`.
+- `empire_tools/trade/` — proposed-trade evaluator. Like FAAB and the cheat
+  sheet (and unlike the auction), argparse not a REPL — a trade is scored
+  once, there's no live state to keep up with.
+  - `evaluate.py` — pure grading logic, no ESPN/I/O dependency, so it's
+    directly unit-testable (`tests/test_trade_evaluate.py`). Grades each
+    side of the trade twice: rest-of-season and long-term, on *different*
+    value models — ROS from ESPN `projected_total_points` (a dynasty
+    ranking is the wrong ruler for "who helps me win now"), long-term from
+    the shared `valuations.py` dynasty pool. Each grade is a
+    fixed-threshold letter (`GRADE_BANDS`, hardcoded like
+    `cheatsheet/tiers.py`) off a symmetric fairness score,
+    `(value_in - value_out) / max(value_in, value_out)` from that side's
+    point of view — so C is a fair deal and the two sides' raw letters
+    roughly invert (one side's `in` is the other's `out` over the same
+    denominator). A lopsided multi-player deal still behaves: the score
+    keys off aggregate value in vs out, not player count. Positional need
+    is a *soft* nudge on the ROS grade **only** — dynasty value is a
+    multi-year price and the roster shape will change, so nudging the
+    long-term grade would double-count a transient state. A received player
+    who fills an open starting/flex slot (or a given player who leaves you
+    thin at one) is scaled by `trade.need_boost` (default 1.10); a received
+    player who'd only sit on the bench by `trade.depth_discount` (default
+    0.90) — same idea as `faab.bench_only_discount`. The nudge is then
+    clamped by `trade.need_swing_cap` (default 0.10) so it can't move the
+    fairness score more than ~one grade band whatever the multipliers are,
+    and `raw_grade` (pre-need) is surfaced next to `grade`. When neither
+    side touches a need the two discounts cancel, so need is genuinely a
+    tie-breaker. Known v1 approximation: two received players at one needed
+    position both get the boost though only one slot is filled.
+    `side_callouts` emits the human-readable reasoning ("✓ fills your RB
+    need", "⚠ opens a hole at TE", over-the-roster-limit warnings, signed
+    net ROS points / net long-term value).
+  - `cli.py` — single `eval` subcommand: `--give`/`--get` take the players
+    from your point of view, `--team` defaults to `my_team_name`, `--with`
+    names the other team but is inferred from which team currently rosters
+    the `--get` players when omitted (with specific errors when they span
+    multiple teams, are free agents, or don't exist). Reuses
+    `roster.find_team` and `roster.needed_positions` — the latter run
+    against a *hypothetical* post-trade roster (positions removed/added as
+    a multiset, since `needed_positions` only consumes a position list) to
+    get each side's before/after need picture. Builds the long-term value
+    map by unioning `league.free_agents(size=2000)` with the traded
+    players' own `Player` objects, so a rostered-but-traded player still
+    resolves to a value. `render_report` is a plain-text formatter (no
+    markdown/csv export in v1); `--verbose` adds the raw/need-adjusted
+    value breakdown. `projected_total_points` is a full-season figure —
+    fine pre-season (ROS == full season), `# TODO` to prorate by games
+    remaining for mid-season use.

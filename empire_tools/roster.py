@@ -71,6 +71,18 @@ def requirements_from_espn_slot_counts(position_slot_counts: dict[str, int]) -> 
     )
 
 
+def find_team(league, team_name: str):
+    """Look up a team by exact name, tolerating the stray leading/trailing
+    whitespace ESPN sometimes carries in `Team.team_name` (e.g.
+    ``"Burms Burners "``). Raises `RuntimeError` if there's no match. Shared
+    by the FAAB and trade tools, which both take a team name off the CLI."""
+    target = team_name.strip()
+    team = next((t for t in league.teams if t.team_name.strip() == target), None)
+    if team is None:
+        raise RuntimeError(f"No team named {team_name!r} in this league.")
+    return team
+
+
 def needed_positions(requirements: RosterRequirements, rostered_positions: list[str]) -> set[str]:
     """Positions that would still fill an open starting/flex slot, given the
     base positions of players already on a roster. Greedily assigns each

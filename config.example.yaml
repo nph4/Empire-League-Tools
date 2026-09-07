@@ -67,3 +67,21 @@ cheatsheet:
   fan_bias_teams:
     MIN: "MN-bias"
     WSH: "WAS-bias-minor"
+
+# Trade evaluator settings
+trade:
+  # Soft positional-need nudges, applied to the REST-OF-SEASON grade only —
+  # the long-term (dynasty) grade stays a pure value-in vs value-out delta
+  # on the values_csv pool. A received player who fills an open
+  # starting/flex slot on your roster (or a player you give up from a slot
+  # you're now thin at) has their projected-points value scaled by
+  # need_boost; a received player who'd only sit on your bench is scaled by
+  # depth_discount (same idea as faab.bench_only_discount). Kept near 1.0
+  # on purpose — need is a tie-breaker, not the grade. Roster construction
+  # is read from ESPN, same as the other tools.
+  need_boost: 1.10
+  depth_discount: 0.90
+  # Hard cap on how far that nudge can move the fairness score, so the
+  # letter never swings more than ~one grade no matter how the multipliers
+  # above are set.
+  need_swing_cap: 0.10

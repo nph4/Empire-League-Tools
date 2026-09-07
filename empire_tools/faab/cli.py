@@ -11,7 +11,7 @@ import argparse
 from empire_tools import espn_client
 from empire_tools.config import load_config
 from empire_tools.faab.suggest import percentile_within_position, suggest_bid
-from empire_tools.roster import needed_positions, requirements_from_espn_slot_counts
+from empire_tools.roster import find_team, needed_positions, requirements_from_espn_slot_counts
 from empire_tools.valuations import build_value_pool_from_config
 
 
@@ -20,13 +20,6 @@ def list_free_agents(free_agents: list, position: str | None = None):
         if position and player.position != position:
             continue
         print(f"{player.name:<25} {player.position:<4} {player.proTeam}")
-
-
-def find_team(league, team_name: str):
-    team = next((t for t in league.teams if t.team_name == team_name), None)
-    if team is None:
-        raise RuntimeError(f"No team named {team_name!r} in this league.")
-    return team
 
 
 def team_needed_positions(league, team) -> set[str]:

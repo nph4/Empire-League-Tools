@@ -52,5 +52,15 @@ cp config.example.yaml config.yaml  # then fill in your league_id/year
   win-timing target rather than generic dynasty value. Also auto-flags
   known in-league fan-bias teams (`cheatsheet.fan_bias_teams`) and mid-tier
   TEs (if you'd rather pay for the top tier or punt to the waiver wire).
+- **Trade evaluator** (`python -m empire_tools.trade eval --give "Player A"
+  "Player B" --get "Player C" [--team "My Team"] [--with "Other Team"]`) —
+  grades a proposed trade from your side *and* the other team's: a
+  rest-of-season letter grade (from ESPN's season projections) and a
+  long-term one (from your dynasty value pool), for each team, against that
+  team's actual open roster needs. Calls out whether the deal fills or
+  opens a hole in your starting lineup, whether it pushes you past the
+  roster limit, and the net points/value each way. `--with` is optional —
+  the other team is inferred from whoever currently rosters the players
+  you're getting. `--team` defaults to `my_team_name` in `config.yaml`.
 
 More tools will be added as the league progresses.
