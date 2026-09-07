@@ -123,6 +123,24 @@ There is no linter/formatter configured yet.
     as NEEDED or bench), `needs "<manager>"` (remaining roster requirements).
     A REPL was chosen over a notebook or web UI specifically because the
     tool needs to keep up with a live, time-pressured auction.
+    Lessons from running this live for the 2026 draft: ESPN team names
+    can carry stray whitespace (e.g. one manager's name is actually
+    `"Burms Burners "` with a trailing space in `Team.team_name`) —
+    `sold`/`suggest`/`targets` match the manager name exactly, so if a
+    lookup fails on an on-screen name, check `budgets` output (or
+    `repr()` the name via `espn_client.get_league().teams`) for a
+    trailing/leading space before assuming the player name is wrong.
+    ESPN's own bid box enforces the identical $1-per-remaining-roster-
+    spot max bid client-side, confirming `DraftState.max_bid` doesn't
+    need a separate sanity check against it. The nomination minimum
+    raise is $1: joining a bid on a player someone else just nominated
+    at $1 costs $2, not $1. To co-pilot a live draft from a separate
+    process (e.g. an agent watching the ESPN draft room in a browser
+    while a human bids), the REPL can be driven non-interactively over
+    a named pipe: `mkfifo` a fifo, keep a `sleep infinity` writer open
+    on it so the reader never sees EOF between commands, launch
+    `python -m empire_tools.auction < fifo > log 2>&1 &`, then append
+    commands to the fifo and tail the log from any process.
 - `empire_tools/faab/` — weekly FAAB waiver bid assistant. Unlike the
   auction draft, ESPN already tracks real budget state
   (`League.settings.acquisition_budget`, `Team.acquisition_budget_spent`),
