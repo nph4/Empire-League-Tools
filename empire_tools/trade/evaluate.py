@@ -18,16 +18,22 @@ antisymmetric between the two sides in the raw (need-agnostic) model - one
 side's `in` is the other's `out` over the same denominator - so a lopsided
 deal grades A for one team and F for the other.
 
-Positional need is a *soft* nudge on the ROS grade only. A received player
-who fills an open starting/flex slot (or a given player who leaves you thin
-at a slot) is scaled by `need_boost`; a received player who'd only sit on
-the bench is scaled by `depth_discount` - the same idea as
-`faab.bench_only_discount`. The nudge is then clamped by `need_swing_cap`
-so it can never move the fairness score by more than that much - about one
-grade band - whatever the multipliers are set to; `raw_grade` (pre-need)
-is surfaced alongside `grade` so the effect stays visible. Long-term
-deliberately ignores need: dynasty value is a multi-year price and the
-roster shape will change.
+Positional need is a *soft* nudge on the ROS grade only. Each moving
+player's projected-points value is scaled by how strong that side's corps
+is at their position *relative to the rest of the league* (see
+`strength.model`): a received player at a below-average spot is scaled up
+toward `need_boost`, one at a position of strength down toward
+`depth_discount` - a continuous version of the old
+`faab.bench_only_discount` idea. Given players are scaled the same way off
+the *post-trade* roster (leaving a weak spot weaker costs more). When the
+league-relative signal is unavailable (deep preseason, all projections 0),
+`SideNeeds` carries empty weakness maps and the nudge falls back to a
+binary "fills/opens an unfilled starting slot" multiplier. Either way the
+nudge is clamped by `need_swing_cap` so it can never move the fairness
+score by more than that much - about one grade band - whatever the
+multipliers are; `raw_grade` (pre-need) is surfaced alongside `grade` so
+the effect stays visible. Long-term deliberately ignores need: dynasty
+value is a multi-year price and the roster shape will change.
 """
 
 from dataclasses import dataclass, field
@@ -83,7 +89,15 @@ class SideNeeds:
     """A team's roster-need picture around the trade. `need_before` /
     `need_after` are `roster.needed_positions()` on the current vs the
     hypothetical post-trade roster. `roster_capacity` is
-    `RosterRequirements.total_spots` (excludes IR)."""
+    `RosterRequirements.total_spots` (excludes IR).
+
+    `weakness_before` / `weakness_after` are the ROS-only continuous need
+    nudge: `position -> multiplier` (in `[depth_discount, need_boost]`) from
+    `strength.model.team_weakness_multipliers` on the current vs post-trade
+    roster, measured against the rest of the league. When set they supersede
+    the binary `need_before` / `need_after` model for the *grade* multiplier;
+    when empty the grade falls back to that binary model. The callouts always
+    use the binary sets. Long-term never consults either map."""
 
     need_before: frozenset[str] = frozenset()
     need_after: frozenset[str] = frozenset()
@@ -91,6 +105,8 @@ class SideNeeds:
     roster_size_after: int = 0
     bench_spots: int = 0
     roster_capacity: int = 0
+    weakness_before: dict[str, float] = field(default_factory=dict)  # gates RECEIVED players
+    weakness_after: dict[str, float] = field(default_factory=dict)  # gates GIVEN players
 
 
 @dataclass
@@ -143,6 +159,17 @@ def _need_multiplier(fills_or_vacates_starting_slot: bool, cfg: TradeConfig) -> 
     return cfg.need_boost if fills_or_vacates_starting_slot else cfg.depth_discount
 
 
+def _need_multiplier_for(
+    position: str, need_set: frozenset[str], weakness_map: dict[str, float], cfg: TradeConfig
+) -> float:
+    """Continuous league-relative multiplier when `weakness_map` is
+    populated (positions it didn't score are neutral 1.0); otherwise the
+    binary in-`need_set` / not multiplier."""
+    if weakness_map:
+        return weakness_map.get(position, 1.0)
+    return _need_multiplier(position in need_set, cfg)
+
+
 def grade_side_model(
     model: str,
     received: Iterable[SidePlayer],
@@ -165,10 +192,14 @@ def grade_side_model(
         # leaves this side thin there -> boost (losing them costs more).
         # Everything else is bench depth -> discount.
         adj_in = sum(
-            value_of(p) * _need_multiplier(p.position in needs.need_before, cfg) for p in received
+            value_of(p)
+            * _need_multiplier_for(p.position, needs.need_before, needs.weakness_before, cfg)
+            for p in received
         )
         adj_out = sum(
-            value_of(p) * _need_multiplier(p.position in needs.need_after, cfg) for p in given
+            value_of(p)
+            * _need_multiplier_for(p.position, needs.need_after, needs.weakness_after, cfg)
+            for p in given
         )
     else:
         adj_in, adj_out = raw_in, raw_out

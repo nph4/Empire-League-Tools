@@ -61,6 +61,17 @@ is the tracked template.
   going over the roster limit, and the net points/value each way. `--with`
   is optional — the other team is inferred from whoever rosters the `--get`
   players. `--team` defaults to `my_team_name`.
+- **Positional strength** (`python -m empire_tools.strength report [--team
+  "My Team"] [--all] [--metric points|value|both]`) — scores a team's corps
+  at every base position against the rest of the league, on two rulers side
+  by side (ESPN season projections and your dynasty value pool), with each
+  position's rank and z-score and a strong/average/weak verdict, and lists
+  the positions where you're a relative weak spot. Distinct from `faab
+  needs` / the auction's `needs`, which only ask whether a starting slot is
+  literally unfilled. Corps strength is a blend — starters at full weight,
+  bench depth discounted. `--all` shows every team; `--team` defaults to
+  `my_team_name`. This model also drives the trade evaluator's
+  rest-of-season need nudge.
 
 ## Configuration
 
@@ -80,8 +91,10 @@ ESPN league's lineup settings.
 | `cheatsheet.notes_csv` | cheatsheet | optional hand-maintained overlay (`name,tier_override,flags,notes,window_fit`) |
 | `cheatsheet.tier_gap_threshold` | cheatsheet | relative value drop that starts a new tier (default 0.15) |
 | `cheatsheet.fan_bias_teams` | cheatsheet | `proTeam -> flag text` map for known homer-bias teams |
-| `trade.need_boost` / `trade.depth_discount` | trade | soft need nudges on the rest-of-season grade (defaults 1.10 / 0.90) |
+| `trade.need_boost` / `trade.depth_discount` | trade | bounds on the rest-of-season need nudge, now scaled by how far above/below league average your corps is at that position (defaults 1.10 / 0.90) |
 | `trade.need_swing_cap` | trade | hard cap on how far that nudge can move the score (default 0.10) |
+| `strength.bench_depth_weight` | strength, trade | weight on bench players in the corps-strength blend; starters count 1.0 (default 0.4) |
+| `strength.trade_z_span` | trade | z below league average at a position that earns the full ROS need nudge (default 1.5) |
 
 **`values_csv` shapes** (auto-detected from the header by
 `valuations.load_csv_values`):
@@ -120,6 +133,14 @@ The actual data files are kept in `Ranking CSVs/` (FantasyPros exports,
   pure function returning which base positions would still fill an open
   starting/flex slot. `find_team(league, name)` is a shared exact-name
   lookup (tolerant of ESPN's stray whitespace).
+- **League-relative positional strength.** `empire_tools/strength/model.py`
+  is a third consumer of `RosterRequirements` (with the auction and FAAB):
+  it scores each team's corps at every position (starters full weight,
+  bench depth discounted) and rolls the league up into per-position mean /
+  stdev / z-score / rank. The `strength` report renders it; the trade
+  evaluator's rest-of-season need nudge is derived from it (a received
+  player at a below-average spot counts for more), falling back to
+  `needed_positions` when there's no signal yet.
 - **Pure logic vs. CLI, in every tool.** The decision logic lives in an
   ESPN-free, I/O-free module (`state.py` / `suggest.py` / `evaluate.py` /
   `tiers.py` / `build.py` …) that's unit-tested directly. A thin `cli.py`

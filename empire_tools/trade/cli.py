@@ -20,6 +20,12 @@ import argparse
 from empire_tools import espn_client
 from empire_tools.config import load_config
 from empire_tools.roster import find_team, needed_positions, requirements_from_espn_slot_counts
+from empire_tools.strength.model import (
+    DEFAULT_BENCH_DEPTH_WEIGHT,
+    DEFAULT_TRADE_Z_SPAN,
+    league_positional_strength,
+    team_weakness_multipliers,
+)
 from empire_tools.trade.evaluate import (
     DEFAULT_DEPTH_DISCOUNT,
     DEFAULT_NEED_BOOST,
@@ -83,7 +89,34 @@ def _infer_counterparty(league, user_team, get_names: list[str]):
     return find_team(league, candidates.pop())
 
 
-def _side_needs(requirements, team, received: list, given: list) -> SideNeeds:
+def _points_roster(team) -> list[tuple[str, float]]:
+    """(base_position, projected_total_points) per rostered player - the
+    projected-points ruler for the league positional-strength model."""
+    return [(p.position, float(p.projected_total_points or 0.0)) for p in team.roster]
+
+
+def _side_strength_rosters(team, received: list, given: list) -> tuple[list, list]:
+    """(before, after) `_points_roster`-shaped lists for one side, applying
+    the same first-position-match removal for given players that
+    `_side_needs` does - but carrying the value each player is worth."""
+    before = _points_roster(team)
+    after = list(before)
+    for p in given:
+        match = next((entry for entry in after if entry[0] == p.position), None)
+        if match is not None:
+            after.remove(match)
+    after += [(p.position, float(p.projected_total_points or 0.0)) for p in received]
+    return before, after
+
+
+def _side_needs(
+    requirements,
+    team,
+    received: list,
+    given: list,
+    weakness_before: dict | None = None,
+    weakness_after: dict | None = None,
+) -> SideNeeds:
     before = [p.position for p in team.roster]
     after = list(before)
     for p in given:
@@ -97,6 +130,8 @@ def _side_needs(requirements, team, received: list, given: list) -> SideNeeds:
         roster_size_after=len(after),
         bench_spots=requirements.bench_spots,
         roster_capacity=requirements.total_spots,
+        weakness_before=weakness_before or {},
+        weakness_after=weakness_after or {},
     )
 
 
@@ -174,14 +209,51 @@ def evaluate_cli(config: dict, league, args) -> str:
     requirements = requirements_from_espn_slot_counts(league.settings.position_slot_counts)
     user_received = [to_side_player(p) for p in get_players]
     user_given = [to_side_player(p) for p in give_players]
-    user_needs = _side_needs(requirements, user_team, get_players, give_players)
-    counterparty_needs = _side_needs(requirements, counterparty, give_players, get_players)
 
     trade_config = config.get("trade", {})
     cfg = TradeConfig(
         need_boost=trade_config.get("need_boost", DEFAULT_NEED_BOOST),
         depth_discount=trade_config.get("depth_discount", DEFAULT_DEPTH_DISCOUNT),
         need_swing_cap=trade_config.get("need_swing_cap", DEFAULT_NEED_SWING_CAP),
+    )
+
+    # League-relative positional strength drives the ROS need nudge: a
+    # received player at a below-average spot counts for more, one at a
+    # position of strength for less. Points ruler only (dynasty value never
+    # feeds need). Falls back to the binary need model in deep preseason.
+    strength_config = config.get("strength", {})
+    bench_weight = strength_config.get("bench_depth_weight", DEFAULT_BENCH_DEPTH_WEIGHT)
+    z_span = strength_config.get("trade_z_span", DEFAULT_TRADE_Z_SPAN)
+    base_rosters = {t.team_name.strip(): _points_roster(t) for t in league.teams}
+    base_strength = league_positional_strength(base_rosters, requirements, bench_weight)
+
+    def weakness_maps(team, received, given):
+        """(before, after) position->multiplier dicts for one side. `after`
+        recomputes the league with only this team's roster swapped."""
+        if base_strength.is_degenerate:
+            return {}, {}
+        name = team.team_name.strip()
+
+        def multipliers(strength):
+            return team_weakness_multipliers(
+                strength,
+                name,
+                need_boost=cfg.need_boost,
+                depth_discount=cfg.depth_discount,
+                z_span=z_span,
+            )
+
+        _, after_roster = _side_strength_rosters(team, received, given)
+        after_strength = league_positional_strength(
+            {**base_rosters, name: after_roster}, requirements, bench_weight
+        )
+        return multipliers(base_strength), multipliers(after_strength)
+
+    user_wb, user_wa = weakness_maps(user_team, get_players, give_players)
+    cp_wb, cp_wa = weakness_maps(counterparty, give_players, get_players)
+    user_needs = _side_needs(requirements, user_team, get_players, give_players, user_wb, user_wa)
+    counterparty_needs = _side_needs(
+        requirements, counterparty, give_players, get_players, cp_wb, cp_wa
     )
 
     result = evaluate_trade(

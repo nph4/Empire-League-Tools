@@ -72,16 +72,33 @@ cheatsheet:
 trade:
   # Soft positional-need nudges, applied to the REST-OF-SEASON grade only —
   # the long-term (dynasty) grade stays a pure value-in vs value-out delta
-  # on the values_csv pool. A received player who fills an open
-  # starting/flex slot on your roster (or a player you give up from a slot
-  # you're now thin at) has their projected-points value scaled by
-  # need_boost; a received player who'd only sit on your bench is scaled by
-  # depth_discount (same idea as faab.bench_only_discount). Kept near 1.0
-  # on purpose — need is a tie-breaker, not the grade. Roster construction
-  # is read from ESPN, same as the other tools.
+  # on the values_csv pool. Each moving player's projected-points value is
+  # scaled by how strong that side's corps is at their position *relative to
+  # the rest of the league* (see the `strength` section): a received player
+  # at a below-average spot scales up toward need_boost, one at a position
+  # of strength down toward depth_discount (a continuous version of
+  # faab.bench_only_discount). Given players scale the same way off the
+  # post-trade roster. In deep preseason (all projections still 0) this
+  # falls back to a binary "fills/opens an unfilled starting slot" nudge.
+  # Kept near 1.0 on purpose — need is a tie-breaker, not the grade.
   need_boost: 1.10
   depth_discount: 0.90
   # Hard cap on how far that nudge can move the fairness score, so the
   # letter never swings more than ~one grade no matter how the multipliers
   # above are set.
   need_swing_cap: 0.10
+
+# League-relative positional strength (the `strength` report + the trade
+# evaluator's rest-of-season need nudge). Roster construction is read from
+# ESPN, same as the other tools.
+strength:
+  # Weight on players beyond a position's starting/flex slots when scoring
+  # how strong a team's corps is there. Starters count 1.0; the rest at this
+  # fraction — same idea as faab.bench_only_discount.
+  bench_depth_weight: 0.4
+  # Trade nudge only: how many standard deviations below the league mean a
+  # position has to be for a received player there to earn the full
+  # trade.need_boost (and how far above for the full trade.depth_discount).
+  # Small leagues compress z-scores, so this is well under 2. The nudge is
+  # still clamped by trade.need_swing_cap.
+  trade_z_span: 1.5

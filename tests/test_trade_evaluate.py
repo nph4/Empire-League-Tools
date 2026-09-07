@@ -173,6 +173,86 @@ def test_long_term_grade_ignores_need_config_entirely():
     assert a.user.long_term.grade == b.user.long_term.grade
 
 
+# --- continuous league-relative need nudge (weakness maps) -------------------
+
+
+def test_weakness_map_supersedes_the_binary_need_set():
+    # No binary need, but the weakness map says RB is a below-average spot.
+    result = evaluate_trade(
+        "You",
+        "Them",
+        user_received=[_p("RB1", "RB", 100, 100)],
+        user_given=[_p("WR1", "WR", 100, 100)],
+        user_needs=SideNeeds(need_before=frozenset(), weakness_before={"RB": 1.10}),
+        counterparty_needs=SideNeeds(),
+    )
+    assert result.user.ros.score > result.user.ros.raw_score
+
+
+def test_weakness_after_map_dings_a_given_player():
+    result = evaluate_trade(
+        "You",
+        "Them",
+        user_received=[_p("WR1", "WR", 100, 100)],
+        user_given=[_p("RB1", "RB", 100, 100)],
+        user_needs=SideNeeds(weakness_after={"RB": 1.10}),
+        counterparty_needs=SideNeeds(),
+    )
+    assert result.user.ros.score < result.user.ros.raw_score
+
+
+def test_empty_weakness_maps_fall_back_to_the_binary_need_model():
+    kwargs = dict(
+        user_team_name="You",
+        counterparty_team_name="Them",
+        user_received=[_p("RB1", "RB", 100, 100)],
+        user_given=[_p("WR1", "WR", 100, 100)],
+        counterparty_needs=SideNeeds(),
+    )
+    binary = evaluate_trade(**kwargs, user_needs=SideNeeds(need_before=frozenset({"RB"})))
+    still_binary = evaluate_trade(
+        **kwargs,
+        user_needs=SideNeeds(need_before=frozenset({"RB"}), weakness_before={}, weakness_after={}),
+    )
+    assert still_binary.user.ros.score == binary.user.ros.score
+
+
+def test_weakness_map_is_still_clamped_by_need_swing_cap():
+    result = evaluate_trade(
+        "You",
+        "Them",
+        user_received=[_p("RB1", "RB", 100, 100)],
+        user_given=[_p("WR1", "WR", 100, 100)],
+        user_needs=SideNeeds(weakness_before={"RB": 5.0}),
+        counterparty_needs=SideNeeds(),
+    )
+    shift = abs(result.user.ros.score - result.user.ros.raw_score)
+    assert shift <= DEFAULT_NEED_SWING_CAP + 1e-9
+
+
+def test_long_term_grade_ignores_weakness_maps():
+    kwargs = dict(
+        user_team_name="You",
+        counterparty_team_name="Them",
+        user_received=[_p("RB1", "RB", 100, 100)],
+        user_given=[_p("WR1", "WR", 100, 120)],
+        counterparty_needs=SideNeeds(),
+    )
+    plain = evaluate_trade(**kwargs, user_needs=SideNeeds())
+    aggressive = evaluate_trade(
+        **kwargs,
+        user_needs=SideNeeds(weakness_before={"RB": 5.0}, weakness_after={"WR": 5.0}),
+    )
+    assert plain.user.long_term.score == aggressive.user.long_term.score
+    assert plain.user.long_term.grade == aggressive.user.long_term.grade
+
+
+def test_side_needs_defaults_keep_empty_weakness_maps():
+    needs = SideNeeds()
+    assert needs.weakness_before == {}
+    assert needs.weakness_after == {}
+
+
 def test_ros_uses_ros_value_and_long_term_uses_lt_value():
     # A is a win-now asset; B is a dynasty asset.
     result = evaluate_trade(
