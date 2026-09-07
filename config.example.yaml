@@ -19,7 +19,7 @@ my_team_name: "Example Team Name"
 # a value derived from their ESPN projected points. Shared by the auction
 # and FAAB tools. Omit this key to rely on the ESPN fallback for every
 # player.
-values_csv: player_values.csv
+values_csv: "Ranking CSVs/player_values.csv"
 
 # Optional: only used when values_csv is a FantasyPros rankings export.
 # How many ranks it takes the derived value to halve — lower concentrates
@@ -58,7 +58,7 @@ cheatsheet:
   # as often as you like between now and draft day; omit this key (or
   # point it at a file that doesn't exist yet) to get an auto-tiered sheet
   # with no manual annotations.
-  notes_csv: cheatsheet_notes.csv
+  notes_csv: "Cheetsheet/cheatsheet_notes.csv"
   # How big a relative value drop (as a fraction of the higher value)
   # triggers a new tier within a position. Lower = more, narrower tiers.
   tier_gap_threshold: 0.15

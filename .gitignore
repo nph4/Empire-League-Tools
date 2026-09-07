@@ -224,3 +224,6 @@ config.yaml
 # Editor backup / undo files (Vim)
 *~
 .*.un~
+
+# LibreOffice lock files
+.~lock.*#
