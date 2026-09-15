@@ -36,13 +36,20 @@ is the tracked template.
   draft's actual spending inflates or deflates the market. Commands:
   `sold "<player>" <amount> "<manager>"`, `budgets`, `available [POSITION]`,
   `suggest "<player>"`, `targets "<manager>"`, `needs "<manager>"`.
-- **FAAB assistant** (`python -m empire_tools.faab list [--position POS]` /
-  `bid "Player Name" [--team "My Team"]` / `needs [--team "My Team"]`) —
-  lists current free agents, or suggests a dollar waiver bid for one sized
-  against your actual remaining FAAB budget (read live from ESPN), how the
-  player ranks among free agents at their position, and whether they'd fill
-  an open starting/flex slot on your current roster — bench-only adds get a
-  discounted suggestion. `--team` defaults to `my_team_name`.
+- **FAAB assistant** (`python -m empire_tools.faab list [--position POS]
+  [--include-ir]` / `bid "Player Name" [--team "My Team"]` / `needs [--team
+  "My Team"]`) — lists current free agents (players on injured reserve are
+  hidden by default — pass `--include-ir` to see them), or suggests a
+  dollar waiver bid for one sized against your actual remaining FAAB budget
+  (read live from ESPN), how the player ranks among free agents at their
+  position, and whether they'd fill an open starting/flex slot on your
+  current roster — bench-only adds get a discounted suggestion. A player's
+  position rank blends their `values_csv` dynasty rank with their live ESPN
+  `projected_total_points` rank, shifting weight toward the live signal as
+  the season goes on (`faab.live_weight_*`) — dynasty rankings sites freeze
+  at Labor Day and never update again, so this is what lets an in-season
+  breakout (or bust) actually move a suggested bid instead of being stuck
+  at a stale preseason rank. `--team` defaults to `my_team_name`.
 - **Draft cheat sheet** (`python -m empire_tools.cheatsheet generate
   [--position POS] [--format markdown|csv] [--output PATH]`) — a printable
   pre-draft sheet of every draftable player, grouped by position and tiered
@@ -88,6 +95,8 @@ ESPN league's lineup settings.
 | `auction.budget_per_manager` | auction | dollars per manager |
 | `faab.max_bid_share` | faab | cap on one bid as a fraction of remaining budget (default 0.35) |
 | `faab.bench_only_discount` | faab | multiplier when an add wouldn't fill a starting/flex slot (default 0.4) |
+| `faab.live_weight_start` / `faab.live_weight_end` | faab | blend weight on the live ESPN-projection rank vs. the dynasty CSV rank, in week 1 and by `live_weight_ramp_weeks` respectively (defaults 0.4 / 0.9); dynasty rank never drops to zero weight |
+| `faab.live_weight_ramp_weeks` | faab | week by which the blend reaches `live_weight_end` (default 8) |
 | `cheatsheet.notes_csv` | cheatsheet | optional hand-maintained overlay (`name,tier_override,flags,notes,window_fit`) |
 | `cheatsheet.tier_gap_threshold` | cheatsheet | relative value drop that starts a new tier (default 0.15) |
 | `cheatsheet.fan_bias_teams` | cheatsheet | `proTeam -> flag text` map for known homer-bias teams |

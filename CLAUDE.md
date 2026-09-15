@@ -100,10 +100,51 @@ otherwise have to be rediscovered, and a dated log of non-obvious changes.
   is `cheatsheet.fan_bias_teams`; the `build_rows` parameter it feeds is
   `team_bias_flags`. Same thing, two names.
 
+- **`faab bid`'s ranking is a live/dynasty blend, not a pure `values_csv`
+  lookup.** Dynasty CSV exports freeze at Labor Day and never update again
+  all season, so a player's static rank can't see an in-season breakout or
+  bust. `faab/suggest.py`'s `blend_percentiles` combines the dynasty
+  percentile with a live one built off ESPN's `projected_total_points`
+  (recalculated weekly off actual usage), weighted by `live_weight_for_week`
+  — the live share ramps from `faab.live_weight_start` (0.4) in week 1 to
+  `faab.live_weight_end` (0.9) by `faab.live_weight_ramp_weeks` (8) and
+  holds — dynasty rank never drops to *zero* weight, it's just never enough
+  to out-rank what's actually happening on the field. `faab list` also
+  hides free agents whose `injuryStatus` is `INJURY_RESERVE` by default
+  (`--include-ir` to show them) — a dynasty rank has no way to know a
+  ranked player has since landed on IR, so this has to be checked against
+  ESPN's live status rather than inferred from value. Real example that
+  motivated this: Eli Stowers (TE) ranked highly by a preseason dynasty
+  export while actually on IR and projected for 0 points — his suggested
+  bid dropped from $14 (pure dynasty rank) to $9 at week 2 once blended,
+  and he no longer appears in `faab list` at all by default.
+
+- **`config.yaml` is gitignored, so path-moving commits don't update it.**
+  The "Repo file cleanup" commit (below) moved `player_values.csv` and
+  `cheatsheet_notes.csv` into subfolders and updated the paths in
+  `config.example.yaml`, but the real (gitignored) `config.yaml` kept
+  pointing at the old locations and silently broke `values_csv`/`notes_csv`
+  loading for every tool until fixed by hand. If a CSV-loading `FileNotFoundError`
+  shows up after a repo reorg, check `config.yaml` against
+  `config.example.yaml` before assuming the code is wrong.
+
 ## Change log
 
 Newest first. Dated, and only for changes that aren't obvious from `git
 log` alone.
+
+- **2026-09-15 — FAAB live/dynasty blend + IR filtering.** `faab bid`'s
+  position-rank percentile is now a blend of the `values_csv` dynasty
+  percentile and a live one off ESPN's weekly-recalculated
+  `projected_total_points`, via new `faab/suggest.py` functions
+  `blend_percentiles` / `live_weight_for_week`; the live share ramps from
+  `faab.live_weight_start` to `faab.live_weight_end` over
+  `faab.live_weight_ramp_weeks` (defaults 0.4 → 0.9 over 8 weeks). New
+  `faab/suggest.py` `is_injury_reserve` hides IR free agents from `faab
+  list` by default (`--include-ir` to show) and prints a warning on `faab
+  bid` for one. See the two new gotchas above for why. Also fixed
+  `config.yaml`'s `values_csv`/`notes_csv` paths, stale since the "Repo
+  file cleanup" commit below (gitignored file, never got the update).
 
 - **2026-09-07 — League-relative positional strength.** New pure
   `empire_tools/strength/model.py` (corps-strength blend → per-position

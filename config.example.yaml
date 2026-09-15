@@ -45,6 +45,18 @@ faab:
   # than an open starter or flex slot. Roster requirements are read
   # automatically from your ESPN league's settings, same as the auction.
   bench_only_discount: 0.4
+  # `bid` ranks a free agent by a blend of their values_csv dynasty rank and
+  # their live ESPN projected_total_points rank - dynasty sites freeze their
+  # rankings at Labor Day and never touch them again all season, so on their
+  # own they can't see an in-season breakout or bust the way ESPN's weekly
+  # recalculated projection can. live_weight_start is how much the blend
+  # leans on the live signal in week 1 (still mostly a preseason guess
+  # itself); it ramps linearly to live_weight_end by live_weight_ramp_weeks
+  # and holds there - dynasty rank never drops out entirely, it's just never
+  # enough to out-rank what's actually happening on the field.
+  live_weight_start: 0.4
+  live_weight_end: 0.9
+  live_weight_ramp_weeks: 8
 
 # Draft cheat sheet settings
 cheatsheet:
