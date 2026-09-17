@@ -199,3 +199,6 @@ pytest tests/test_auction_state.py -q     # one module
 (ESPN quirks, counterintuitive model behavior, live-draft lessons) and a
 dated log of non-obvious changes. Worth a look if something behaves
 unexpectedly.
+
+## TODO
+- Create tool for annual rookie drafts
