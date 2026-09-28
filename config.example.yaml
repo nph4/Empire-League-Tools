@@ -99,6 +99,15 @@ trade:
   # letter never swings more than ~one grade no matter how the multipliers
   # above are set.
   need_swing_cap: 0.10
+  # Future rookie-draft picks (--give-pick / --get-pick). A pick is priced
+  # as the same slot in the most recent rookie class: the names in this CSV
+  # (a `name` column, or a FantasyPros rookie rankings export) are looked up
+  # in the values_csv pool, sorted by value, and cut into rounds of league
+  # size. Update it to the newest class after each NFL draft.
+  rookie_class_csv: "Ranking CSVs/rookie_class_2026.csv"
+  rookie_draft_rounds: 4
+  # Multiplier (1 - this) per year the pick is out past the current season.
+  pick_year_discount: 0.15
 
 # League-relative positional strength (the `strength` report + the trade
 # evaluator's rest-of-season need nudge). Roster construction is read from

@@ -67,7 +67,12 @@ is the tracked template.
   team's open roster needs. Calls out filled/opened starting-lineup holes,
   going over the roster limit, and the net points/value each way. `--with`
   is optional — the other team is inferred from whoever rosters the `--get`
-  players. `--team` defaults to `my_team_name`.
+  players. `--team` defaults to `my_team_name`. Future rookie-draft picks
+  trade too: `--give-pick` / `--get-pick YEAR:ROUND[:SLOT|early|mid|late]`
+  (e.g. `2027:2`, `2027:1:late`, `2027:1:4`). A pick is priced as the same
+  slot in the most recent rookie class (`trade.rookie_class_csv`, valued off
+  your dynasty pool), discounted per year out; it counts toward long-term
+  only and takes no roster spot.
 - **Positional strength** (`python -m empire_tools.strength report [--team
   "My Team"] [--all] [--metric points|value|both]`) — scores a team's corps
   at every base position against the rest of the league, on two rulers side
@@ -102,6 +107,9 @@ ESPN league's lineup settings.
 | `cheatsheet.fan_bias_teams` | cheatsheet | `proTeam -> flag text` map for known homer-bias teams |
 | `trade.need_boost` / `trade.depth_discount` | trade | bounds on the rest-of-season need nudge, now scaled by how far above/below league average your corps is at that position (defaults 1.10 / 0.90) |
 | `trade.need_swing_cap` | trade | hard cap on how far that nudge can move the score (default 0.10) |
+| `trade.rookie_class_csv` | trade | names of the most recent rookie class (`name` column, or a FantasyPros rookie rankings export) — prices draft picks; required only for `--give-pick` / `--get-pick`. Refresh after each NFL draft |
+| `trade.rookie_draft_rounds` | trade | rounds in the league's rookie draft (default 4) |
+| `trade.pick_year_discount` | trade | pick value multiplied by (1 − this) per year out past the current season (default 0.15) |
 | `strength.bench_depth_weight` | strength, trade | weight on bench players in the corps-strength blend; starters count 1.0 (default 0.4) |
 | `strength.trade_z_span` | trade | z below league average at a position that earns the full ROS need nudge (default 1.5) |
 

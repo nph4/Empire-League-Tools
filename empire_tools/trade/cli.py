@@ -9,13 +9,18 @@ argparse command, not a REPL: a trade is scored once, there's no live
 state to keep up with.
 
     python -m empire_tools.trade eval --give "Player A" "Player B" \\
-        --get "Player C" [--team "My Team"] [--with "Other Team"]
+        --get "Player C" [--give-pick 2027:2] [--get-pick 2027:1:late] \\
+        [--team "My Team"] [--with "Other Team"]
 
 `--give`/`--get` are from your point of view. `--with` is optional - the
-other team is inferred from whoever currently rosters the `--get` players.
+other team is inferred from whoever currently rosters the `--get` players
+(required when you only receive picks). Picks are priced off the most
+recent rookie class (`trade.rookie_class_csv`); see `trade/picks.py`.
 """
 
 import argparse
+import csv
+from pathlib import Path
 
 from empire_tools import espn_client
 from empire_tools.config import load_config
@@ -35,7 +40,29 @@ from empire_tools.trade.evaluate import (
     TradeConfig,
     evaluate_trade,
 )
+from empire_tools.trade.picks import (
+    DEFAULT_PICK_YEAR_DISCOUNT,
+    DEFAULT_ROOKIE_DRAFT_ROUNDS,
+    PICK_POSITION,
+    parse_pick,
+    pick_value,
+    rookie_slot_values,
+    year_multiplier,
+)
 from empire_tools.valuations import build_value_pool_from_config
+
+
+def load_rookie_class(path) -> list[str]:
+    """Names from a rookie-class CSV: a `name` column (hand-maintained) or
+    a FantasyPros rookie rankings export's `PLAYER NAME` column. Order
+    doesn't matter - slots are ranked by dynasty value."""
+    with Path(path).open(newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        headers = {h.strip().strip('"').strip().upper(): h for h in (reader.fieldnames or [])}
+        name_col = headers.get("NAME") or headers.get("PLAYER NAME")
+        if name_col is None:
+            raise RuntimeError(f"{path}: rookie class CSV needs a 'name' or 'PLAYER NAME' column.")
+        return [row[name_col].strip() for row in reader if (row.get(name_col) or "").strip()]
 
 
 def _resolve_from_roster(team, names: list[str], side_label: str) -> list:
@@ -141,7 +168,7 @@ def _grade_cell(model) -> str:
     return f"{model.grade}  (raw {model.raw_grade})"
 
 
-def render_report(result, verbose: bool = False) -> str:
+def render_report(result, verbose: bool = False, pick_lines: list[str] | None = None) -> str:
     you, them = result.user, result.counterparty
     you_name, them_name = you.team_name.strip(), them.team_name.strip()
     name_w = max(len(you_name), len(them_name), len("Team")) + 2
@@ -164,6 +191,8 @@ def render_report(result, verbose: bool = False) -> str:
                 f"   ->  {side.long_term.value_in:7.1f} / {side.long_term.value_out:7.1f}"
                 f"   score {side.long_term.raw_score:+.3f}",
             ]
+    if pick_lines:
+        lines += [""] + pick_lines
     for side in (you, them):
         lines.append("")
         lines.append(f"{side.team_name.strip()}:")
@@ -180,6 +209,11 @@ def evaluate_cli(config: dict, league, args) -> str:
     overlap = set(args.give) & set(args.get)
     if overlap:
         raise RuntimeError(f"{', '.join(map(repr, sorted(overlap)))} is on both sides of the trade.")
+
+    if not (args.give or args.give_pick) or not (args.get or args.get_pick):
+        raise RuntimeError("Each side needs at least one player or pick (--give/--give-pick, --get/--get-pick).")
+    if not args.get and not args.with_:
+        raise RuntimeError("Receiving only picks - pass --with to name the other team.")
 
     user_team = find_team(league, user_team_name)
     counterparty = (
@@ -206,11 +240,14 @@ def evaluate_cli(config: dict, league, args) -> str:
             lt_value=float(lt_pool.get(p.name, 0.0)),
         )
 
-    requirements = requirements_from_espn_slot_counts(league.settings.position_slot_counts)
-    user_received = [to_side_player(p) for p in get_players]
-    user_given = [to_side_player(p) for p in give_players]
-
     trade_config = config.get("trade", {})
+    give_picks, get_picks, pick_lines = _price_picks(trade_config, league, lt_pool, args)
+
+    requirements = requirements_from_espn_slot_counts(league.settings.position_slot_counts)
+    # Picks go straight into the grade, never into roster/need/strength math.
+    user_received = [to_side_player(p) for p in get_players] + get_picks
+    user_given = [to_side_player(p) for p in give_players] + give_picks
+
     cfg = TradeConfig(
         need_boost=trade_config.get("need_boost", DEFAULT_NEED_BOOST),
         depth_discount=trade_config.get("depth_discount", DEFAULT_DEPTH_DISCOUNT),
@@ -265,7 +302,49 @@ def evaluate_cli(config: dict, league, args) -> str:
         counterparty_needs=counterparty_needs,
         cfg=cfg,
     )
-    return render_report(result, verbose=args.verbose)
+    return render_report(result, verbose=args.verbose, pick_lines=pick_lines)
+
+
+def _price_picks(trade_config: dict, league, lt_pool: dict, args):
+    """(give SidePlayers, get SidePlayers, report lines) for the pick
+    flags. Picks carry only long-term value."""
+    if not (args.give_pick or args.get_pick):
+        return [], [], []
+
+    class_path = trade_config.get("rookie_class_csv")
+    if not class_path:
+        raise RuntimeError("Pricing picks needs trade.rookie_class_csv in config.yaml (see config.example.yaml).")
+    rookies = load_rookie_class(class_path)
+
+    league_size = len(league.teams)
+    rounds = trade_config.get("rookie_draft_rounds", DEFAULT_ROOKIE_DRAFT_ROUNDS)
+    discount = trade_config.get("pick_year_discount", DEFAULT_PICK_YEAR_DISCOUNT)
+    current_year = league.year
+
+    # Rookies absent from lt_pool (not in values_csv, not an ESPN free agent
+    # or traded player) price at 0 - fine, they'd be replacement level.
+    slots = rookie_slot_values(rookies, lt_pool, league_size, rounds)
+
+    def price(specs, direction):
+        out, lines = [], []
+        for raw in specs:
+            try:
+                pick = parse_pick(raw, league_size, rounds, current_year)
+            except ValueError as e:
+                raise RuntimeError(str(e)) from None
+            value = pick_value(pick, slots, league_size, current_year, discount)
+            mult = year_multiplier(pick.year, current_year, discount)
+            out.append(SidePlayer(name=pick.label, position=PICK_POSITION, ros_value=0.0, lt_value=value))
+            lines.append(f"  {direction} {pick.label:<18} {value:6.1f}  (x{mult:.2f} for {pick.year - current_year} yr out)")
+        return out, lines
+
+    give, give_lines = price(args.give_pick, "give")
+    get, get_lines = price(args.get_pick, "get ")
+    header = (
+        f"Picks — priced off the {current_year} rookie class ({len(rookies)} rookies, "
+        f"{league_size}-team / {rounds}-round draft, {discount:.0%}/yr discount):"
+    )
+    return give, get, [header] + give_lines + get_lines
 
 
 def main():
@@ -274,11 +353,14 @@ def main():
 
     eval_parser = subparsers.add_parser("eval", help="Grade a proposed trade")
     eval_parser.add_argument(
-        "--give", nargs="+", required=True, metavar="NAME", help="Exact names of players you'd send"
+        "--give", nargs="+", default=[], metavar="NAME", help="Exact names of players you'd send"
     )
     eval_parser.add_argument(
-        "--get", nargs="+", required=True, metavar="NAME", help="Exact names of players you'd receive"
+        "--get", nargs="+", default=[], metavar="NAME", help="Exact names of players you'd receive"
     )
+    pick_help = "future rookie picks as YEAR:ROUND[:SLOT|early|mid|late], e.g. 2027:2 or 2027:1:late"
+    eval_parser.add_argument("--give-pick", nargs="+", default=[], metavar="PICK", help=f"Picks you'd send: {pick_help}")
+    eval_parser.add_argument("--get-pick", nargs="+", default=[], metavar="PICK", help=f"Picks you'd receive: {pick_help}")
     eval_parser.add_argument("--team", help="Your ESPN team name (defaults to my_team_name in config.yaml)")
     eval_parser.add_argument(
         "--with",

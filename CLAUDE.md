@@ -133,6 +133,20 @@ otherwise have to be rediscovered, and a dated log of non-obvious changes.
 Newest first. Dated, and only for changes that aren't obvious from `git
 log` alone.
 
+- **2026-09-27 — Draft picks in the trade evaluator.** New pure
+  `empire_tools/trade/picks.py`; `trade eval` gained `--give-pick` /
+  `--get-pick` (and `--give`/`--get` are no longer required, so pick-only
+  sides work; receiving only picks needs `--with`). Picks become
+  `SidePlayer`s with position `PICK`, `ros_value` 0, and are appended
+  *after* the roster/need/strength math so they never count as a roster
+  spot. New config keys `trade.rookie_class_csv` / `rookie_draft_rounds` /
+  `pick_year_discount`. `Ranking CSVs/rookie_class_2026.csv` was
+  hand-assembled (the FantasyPros dynasty export has no rookie flag): age
+  <= 23 rows cross-checked against the 2026 draft class from memory — swap
+  in a FantasyPros *rookie* rankings export when convenient. The rank→value
+  curve (half-life 30) makes early 1sts dominate and anything past round 2
+  near-worthless; that's the curve, not a picks bug.
+
 - **2026-09-15 — FAAB live/dynasty blend + IR filtering.** `faab bid`'s
   position-rank percentile is now a blend of the `values_csv` dynasty
   percentile and a live one off ESPN's weekly-recalculated
