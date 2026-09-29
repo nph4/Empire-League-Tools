@@ -49,7 +49,9 @@ is the tracked template.
   the season goes on (`faab.live_weight_*`) — dynasty rankings sites freeze
   at Labor Day and never update again, so this is what lets an in-season
   breakout (or bust) actually move a suggested bid instead of being stuck
-  at a stale preseason rank. `--team` defaults to `my_team_name`.
+  at a stale preseason rank. `bid` also prints the player's actual points
+  per game so far next to ESPN's projected per-game rate (display only — it
+  doesn't move the bid). `--team` defaults to `my_team_name`.
 - **Draft cheat sheet** (`python -m empire_tools.cheatsheet generate
   [--position POS] [--format markdown|csv] [--output PATH]`) — a printable
   pre-draft sheet of every draftable player, grouped by position and tiered

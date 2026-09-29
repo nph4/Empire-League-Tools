@@ -89,6 +89,20 @@ def percentile_within_position(
     return 1 - (rank / (len(same_position_values) - 1))
 
 
+def format_points_per_game(total_points: float, avg_points: float, projected_avg_points: float) -> str:
+    """One-line production summary printed under a `faab bid` suggestion:
+    actual points per game so far next to ESPN's projected per-game rate.
+    Display only - the bid itself ignores it - so a slow start (or hot one)
+    is visible even while the blended rank is still carrying some preseason
+    dynasty weight. ESPN doesn't expose games played directly; it's backed
+    out of total / average."""
+    projected = f"ESPN projects {projected_avg_points:.1f}"
+    if not avg_points:
+        return f"Points/game: no points yet, {projected}"
+    games = round(total_points / avg_points)
+    return f"Points/game: {avg_points:.1f} over {games} game(s), {projected}"
+
+
 def suggest_bid(
     remaining_budget: int,
     percentile: float,

@@ -4,6 +4,7 @@ import pytest
 
 from empire_tools.faab.suggest import (
     blend_percentiles,
+    format_points_per_game,
     is_injury_reserve,
     live_weight_for_week,
     percentile_within_position,
@@ -116,6 +117,16 @@ def test_live_weight_holds_at_end_value_past_ramp_week():
 def test_live_weight_ramps_linearly_between_endpoints():
     midpoint = live_weight_for_week(4, start=0.0, end=1.0, ramp_weeks=7)
     assert midpoint == pytest.approx(0.5)
+
+
+def test_format_points_per_game_shows_actual_next_to_projection():
+    line = format_points_per_game(total_points=11.3, avg_points=3.77, projected_avg_points=6.3)
+    assert line == "Points/game: 3.8 over 3 game(s), ESPN projects 6.3"
+
+
+def test_format_points_per_game_handles_no_points_yet():
+    line = format_points_per_game(total_points=0.0, avg_points=0.0, projected_avg_points=5.0)
+    assert line == "Points/game: no points yet, ESPN projects 5.0"
 
 
 def test_blend_percentiles_weights_toward_live_signal():

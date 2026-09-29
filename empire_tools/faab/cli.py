@@ -12,6 +12,7 @@ from empire_tools import espn_client
 from empire_tools.config import load_config
 from empire_tools.faab.suggest import (
     blend_percentiles,
+    format_points_per_game,
     is_injury_reserve,
     live_weight_for_week,
     percentile_within_position,
@@ -109,6 +110,8 @@ def main():
         except RuntimeError as e:
             parser.error(str(e))
         print(f"Suggested bid for {args.player}: ${bid}")
+        player = next(p for p in free_agents if p.name == args.player)
+        print(format_points_per_game(player.total_points, player.avg_points, player.projected_avg_points))
     elif args.command == "needs":
         team_name = args.team or config.get("my_team_name")
         if not team_name:
