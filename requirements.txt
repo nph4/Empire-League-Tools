@@ -1,3 +1,4 @@
 espn_api
 PyYAML
 pytest
+truststore

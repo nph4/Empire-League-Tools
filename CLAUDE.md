@@ -128,6 +128,13 @@ otherwise have to be rediscovered, and a dated log of non-obvious changes.
   shows up after a repo reorg, check `config.yaml` against
   `config.example.yaml` before assuming the code is wrong.
 
+- **`CERTIFICATE_VERIFY_FAILED` against ESPN means a TLS-inspecting
+  proxy.** On the work machine Zscaler re-signs ESPN's cert; Windows trusts
+  its root but requests' certifi bundle doesn't. `espn_client.get_league`
+  calls `truststore.inject_into_ssl()` to use the OS store instead — if the
+  error comes back, check `truststore` is installed in `.venv` before
+  touching certs or disabling verification.
+
 ## Change log
 
 Newest first. Dated, and only for changes that aren't obvious from `git
