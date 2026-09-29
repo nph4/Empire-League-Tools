@@ -221,6 +221,9 @@ __marimo__/
 config.yaml
 .venv/
 
+# Local ESPN screenshots (waiver offer reports etc.)
+/Screenshots/
+
 # Editor backup / undo files (Vim)
 *~
 .*.un~
