@@ -57,6 +57,13 @@ faab:
   live_weight_start: 0.4
   live_weight_end: 0.9
   live_weight_ramp_weeks: 8
+  # How many of the best free agents at a position a player is ranked
+  # against (on each signal) when sizing a bid; anyone below the cutoff
+  # ranks as worst. ESPN returns hundreds of free agents per position, and
+  # ranking against all of them pins every plausible add near the top - so
+  # every bid comes out the same. ~2 per team is roughly the pool a
+  # manager actually considers.
+  comparison_pool_size: 24
 
 # Draft cheat sheet settings
 cheatsheet:

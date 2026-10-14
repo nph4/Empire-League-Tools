@@ -24,6 +24,7 @@ field.
 
 from typing import Iterable, Protocol
 
+DEFAULT_COMPARISON_POOL_SIZE = 24
 
 class HasNameAndPosition(Protocol):
     name: str
@@ -68,24 +69,39 @@ def blend_percentiles(dynasty_percentile: float, live_percentile: float, live_we
 
 
 def percentile_within_position(
-    value_pool: dict[str, float], players: Iterable[HasNameAndPosition], player_name: str
+    value_pool: dict[str, float],
+    players: Iterable[HasNameAndPosition],
+    player_name: str,
+    top_k: int | None = None,
 ) -> float:
     """1.0 = the best currently-available free agent by value at this
     position, 0.0 = the worst. A lone available player at their position
     is treated as the best available (1.0). `value_pool` can be any
     name -> number mapping - a dynasty value pool or a live ESPN projection
     pool - which is what lets `blend_percentiles` combine two independent
-    rankings of the same free-agent list."""
+    rankings of the same free-agent list.
+
+    `top_k` limits the comparison to the K best free agents at the
+    position; anyone below that cutoff scores 0.0. ESPN hands back
+    hundreds of free agents per position, nearly all of them irrelevant,
+    and ranking against all of them pins every plausible add near 1.0 -
+    so every suggested bid comes out the same. Ranking against only the
+    players a manager would actually consider spreads bids back out."""
     players = list(players)
     position = next(p.position for p in players if p.name == player_name)
     same_position_values = sorted(
         (value_pool.get(p.name, 0) for p in players if p.position == position), reverse=True
     )
+    if top_k:
+        same_position_values = same_position_values[:top_k]
 
+    player_value = value_pool.get(player_name, 0)
+    if player_value not in same_position_values:
+        return 0.0
     if len(same_position_values) <= 1:
         return 1.0
 
-    rank = same_position_values.index(value_pool.get(player_name, 0))
+    rank = same_position_values.index(player_value)
     return 1 - (rank / (len(same_position_values) - 1))
 
 
