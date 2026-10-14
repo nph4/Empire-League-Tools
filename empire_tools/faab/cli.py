@@ -35,13 +35,13 @@ def blended_percentiles(config: dict, league, free_agents: list) -> dict[str, fl
         end=faab_config.get("live_weight_end", 0.9),
         ramp_weeks=faab_config.get("live_weight_ramp_weeks", 8),
     )
-    top_k = faab_config.get("comparison_pool_size", DEFAULT_COMPARISON_POOL_SIZE)
+    pool_size = faab_config.get("comparison_pool_size", DEFAULT_COMPARISON_POOL_SIZE)
     dynasty_pool = build_value_pool_from_config(config, free_agents)
     live_pool = {p.name: p.projected_total_points for p in free_agents}
     return {
         p.name: blend_percentiles(
-            percentile_within_position(dynasty_pool, free_agents, p.name, top_k),
-            percentile_within_position(live_pool, free_agents, p.name, top_k),
+            percentile_within_position(dynasty_pool, free_agents, p.name, pool_size),
+            percentile_within_position(live_pool, free_agents, p.name, pool_size),
             weight,
         )
         for p in free_agents

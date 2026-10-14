@@ -104,7 +104,7 @@ ESPN league's lineup settings.
 | `faab.bench_only_discount` | faab | multiplier when an add wouldn't fill a starting/flex slot (default 0.4) |
 | `faab.live_weight_start` / `faab.live_weight_end` | faab | blend weight on the live ESPN-projection rank vs. the dynasty CSV rank, in week 1 and by `live_weight_ramp_weeks` respectively (defaults 0.4 / 0.9); dynasty rank never drops to zero weight |
 | `faab.live_weight_ramp_weeks` | faab | week by which the blend reaches `live_weight_end` (default 8) |
-| `faab.comparison_pool_size` | faab | rank a free agent only against the top K at their position (default 24); without it, hundreds of irrelevant free agents pin every bid at the cap |
+| `faab.comparison_pool_size` | faab | rank a free agent only against the top N at their position (default 24); without it, hundreds of irrelevant free agents pin every bid at the cap |
 | `cheatsheet.notes_csv` | cheatsheet | optional hand-maintained overlay (`name,tier_override,flags,notes,window_fit`) |
 | `cheatsheet.tier_gap_threshold` | cheatsheet | relative value drop that starts a new tier (default 0.15) |
 | `cheatsheet.fan_bias_teams` | cheatsheet | `proTeam -> flag text` map for known homer-bias teams |

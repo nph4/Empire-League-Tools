@@ -72,7 +72,7 @@ def percentile_within_position(
     value_pool: dict[str, float],
     players: Iterable[HasNameAndPosition],
     player_name: str,
-    top_k: int | None = None,
+    pool_size: int | None = None,
 ) -> float:
     """1.0 = the best currently-available free agent by value at this
     position, 0.0 = the worst. A lone available player at their position
@@ -81,7 +81,7 @@ def percentile_within_position(
     pool - which is what lets `blend_percentiles` combine two independent
     rankings of the same free-agent list.
 
-    `top_k` limits the comparison to the K best free agents at the
+    `pool_size` limits the comparison to the N best free agents at the
     position; anyone below that cutoff scores 0.0. ESPN hands back
     hundreds of free agents per position, nearly all of them irrelevant,
     and ranking against all of them pins every plausible add near 1.0 -
@@ -92,8 +92,8 @@ def percentile_within_position(
     same_position_values = sorted(
         (value_pool.get(p.name, 0) for p in players if p.position == position), reverse=True
     )
-    if top_k:
-        same_position_values = same_position_values[:top_k]
+    if pool_size:
+        same_position_values = same_position_values[:pool_size]
 
     player_value = value_pool.get(player_name, 0)
     if player_value not in same_position_values:

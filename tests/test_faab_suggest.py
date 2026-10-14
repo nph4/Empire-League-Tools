@@ -64,26 +64,26 @@ def test_percentile_ranking_is_scoped_to_own_position():
     assert percentile_within_position(make_value_pool(), players, "Worst WR") == 0.0
 
 
-def test_percentile_top_k_ranks_only_against_the_cutoff():
-    # With top_k=2 the pool is just Best and Mid WR, so Mid is now the
+def test_percentile_pool_size_ranks_only_against_the_cutoff():
+    # With pool_size=2 the pool is just Best and Mid WR, so Mid is now the
     # worst *considered* player rather than the middle of three.
     players = make_free_agents()
-    assert percentile_within_position(make_value_pool(), players, "Best WR", top_k=2) == 1.0
-    assert percentile_within_position(make_value_pool(), players, "Mid WR", top_k=2) == 0.0
+    assert percentile_within_position(make_value_pool(), players, "Best WR", pool_size=2) == 1.0
+    assert percentile_within_position(make_value_pool(), players, "Mid WR", pool_size=2) == 0.0
 
 
-def test_percentile_top_k_scores_players_below_cutoff_as_zero():
+def test_percentile_pool_size_scores_players_below_cutoff_as_zero():
     players = make_free_agents()
-    assert percentile_within_position(make_value_pool(), players, "Worst WR", top_k=2) == 0.0
+    assert percentile_within_position(make_value_pool(), players, "Worst WR", pool_size=2) == 0.0
 
 
-def test_percentile_top_k_spreads_out_a_deep_pool():
+def test_percentile_pool_size_spreads_out_a_deep_pool():
     # Without a cutoff, the 3rd-best of 500 free agents is ~1.0 - same bid
     # as the best. Against only the top 5 it lands mid-pack.
     players = [FakePlayer(f"WR {i}", "WR") for i in range(500)]
     pool = {f"WR {i}": 500.0 - i for i in range(500)}
     assert percentile_within_position(pool, players, "WR 2") > 0.99
-    assert percentile_within_position(pool, players, "WR 2", top_k=5) == 0.5
+    assert percentile_within_position(pool, players, "WR 2", pool_size=5) == 0.5
 
 
 @pytest.mark.parametrize(
